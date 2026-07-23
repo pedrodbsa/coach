@@ -1,0 +1,42 @@
+{
+  "name": "Remote Coach",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1.0": {}
+  },
+
+  // Non-root: required by `claude --dangerously-skip-permissions` (the CLI refuses to run as root).
+  "remoteUser": "node",
+
+  "mounts": [
+    // Persist agent auth + the Garmin MCP OAuth token across rebuilds (per-container volumes).
+    "source=coach-claude-config-${devcontainerId},target=/home/node/.claude,type=volume",
+    "source=coach-codex-config-${devcontainerId},target=/home/node/.codex,type=volume",
+    "source=coach-garminconnect-${devcontainerId},target=/home/node/.garminconnect,type=volume",
+    // Keep node_modules (native linux binaries, e.g. duckdb) off the slow 9p Windows bind mount.
+    "source=coach-node-modules-${devcontainerId},target=${containerWorkspaceFolder}/node_modules,type=volume"
+  ],
+
+  "containerEnv": {
+    // The Garmin MCP reads creds from files (never plaintext env). Populate these gitignored
+    // files under secrets/ only when you actually run a Garmin sync (Chunk 4+); the engine
+    // work (Chunks 1-3) needs neither.
+    "GARMIN_EMAIL_FILE": "${containerWorkspaceFolder}/secrets/garmin_email",
+    "GARMIN_PASSWORD_FILE": "${containerWorkspaceFolder}/secrets/garmin_password"
+  },
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "redhat.vscode-yaml",
+        "ms-python.python"
+      ]
+    }
+  },
+
+  "postCreateCommand": "bash .devcontainer/post-create.sh"
+}

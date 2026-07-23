@@ -1,0 +1,23 @@
+# Normalize to LF in the repo so shell scripts and configs run correctly inside the
+# Linux devcontainer, regardless of the Windows host's checkout settings.
+* text=auto eol=lf
+
+*.sh   text eol=lf
+*.ts   text eol=lf
+*.js   text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.yaml text eol=lf
+*.yml  text eol=lf
+*.md   text eol=lf
+
+# Never normalize binaries.
+*.png     binary
+*.jpg     binary
+*.jpeg    binary
+*.gif     binary
+*.ico     binary
+*.gz      binary
+*.zip     binary
+*.duckdb  binary
+*.parquet binary
