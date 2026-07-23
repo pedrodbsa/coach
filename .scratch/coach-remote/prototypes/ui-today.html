@@ -1,0 +1,415 @@
+<title>Coach — Today view mockup</title>
+<style>
+  :root {
+    --bg: #eef1f4;
+    --panel: #ffffff;
+    --panel-2: #f6f8fa;
+    --ink: #121821;
+    --ink-2: #47535f;
+    --ink-3: #7b8794;
+    --line: #e2e7ec;
+    --line-2: #d3dae1;
+    --accent: #0e7c86;
+    --accent-soft: #d7ecee;
+    --ready: #2f8f5b;
+    --ready-soft: #d9efe1;
+    --caution: #b4791f;
+    --hard: #b8443b;
+    --tab: "tnum" 1;
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(18,24,33,.05), 0 8px 24px rgba(18,24,33,.08);
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1417; --panel: #171e24; --panel-2: #1d262d;
+      --ink: #eaf0f4; --ink-2: #a9b6c1; --ink-3: #74828d;
+      --line: #26313a; --line-2: #313e48;
+      --accent: #3fb2bd; --accent-soft: #143138;
+      --ready: #4fb27a; --ready-soft: #143026;
+      --caution: #d6a24a; --hard: #d86a60;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="light"] {
+    --bg: #eef1f4; --panel: #ffffff; --panel-2: #f6f8fa;
+    --ink: #121821; --ink-2: #47535f; --ink-3: #7b8794;
+    --line: #e2e7ec; --line-2: #d3dae1;
+    --accent: #0e7c86; --accent-soft: #d7ecee;
+    --ready: #2f8f5b; --ready-soft: #d9efe1; --caution: #b4791f; --hard: #b8443b;
+    --shadow: 0 1px 2px rgba(18,24,33,.05), 0 8px 24px rgba(18,24,33,.08);
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f1417; --panel: #171e24; --panel-2: #1d262d;
+    --ink: #eaf0f4; --ink-2: #a9b6c1; --ink-3: #74828d;
+    --line: #26313a; --line-2: #313e48;
+    --accent: #3fb2bd; --accent-soft: #143138;
+    --ready: #4fb27a; --ready-soft: #143026; --caution: #d6a24a; --hard: #d86a60;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 28px rgba(0,0,0,.4);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: var(--sans); line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 32px 20px 64px; }
+
+  .masthead { margin-bottom: 28px; }
+  .masthead h1 {
+    font-size: 20px; font-weight: 650; letter-spacing: -.01em; margin: 0 0 4px;
+    text-wrap: balance;
+  }
+  .masthead p { margin: 0; color: var(--ink-2); font-size: 14px; max-width: 60ch; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--accent); font-weight: 650; margin: 0 0 8px;
+  }
+
+  .stage {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 28px; align-items: start;
+  }
+  .col-label {
+    font-size: 12px; letter-spacing: .04em; color: var(--ink-3);
+    margin: 0 0 12px; display: flex; align-items: center; gap: 8px;
+  }
+  .col-label b { color: var(--ink-2); font-weight: 600; letter-spacing: 0; }
+
+  /* phone frame */
+  .phone {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 26px; box-shadow: var(--shadow); overflow: hidden;
+  }
+  .phone-bar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 18px 8px; font-size: 12px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line);
+  }
+  .phone-bar .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); display: inline-block; }
+  .screen { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+
+  /* today header */
+  .day-head { display: flex; flex-direction: column; gap: 8px; }
+  .day-date { font-size: 12px; color: var(--ink-3); letter-spacing: .02em; }
+  .day-title { font-size: 18px; font-weight: 650; letter-spacing: -.01em; margin: 0; }
+  .chips { display: flex; gap: 7px; flex-wrap: wrap; }
+  .chip {
+    font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    border: 1px solid var(--line-2); color: var(--ink-2); background: var(--panel-2);
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .chip.ready { color: var(--ready); background: var(--ready-soft); border-color: transparent; }
+  .chip .led { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  /* answer card */
+  .card {
+    background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .card-top {
+    display: flex; align-items: baseline; justify-content: space-between;
+    padding: 13px 14px 10px; gap: 10px;
+  }
+  .card-kicker {
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 650;
+  }
+  .card-lead { font-size: 15px; font-weight: 600; margin: 2px 0 0; letter-spacing: -.01em; }
+  .card-time { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  .rows { border-top: 1px solid var(--line); }
+  .row {
+    display: grid; grid-template-columns: 1fr auto; gap: 8px;
+    padding: 9px 14px; border-bottom: 1px solid var(--line); align-items: center;
+  }
+  .row:last-child { border-bottom: 0; }
+  .row .name { font-size: 13.5px; color: var(--ink); }
+  .row .sub { font-size: 11.5px; color: var(--ink-3); margin-top: 1px; }
+  .row .val {
+    font-family: var(--mono); font-size: 12.5px; color: var(--ink-2);
+    font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap;
+  }
+  .row .val b { color: var(--ink); font-weight: 600; }
+  .tag {
+    font-size: 10px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    color: var(--accent); background: var(--accent-soft); padding: 1px 6px; border-radius: 5px;
+  }
+
+  /* macro bar */
+  .macro { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .macro-top { display: flex; align-items: baseline; justify-content: space-between; }
+  .kcal { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .kcal b { font-size: 20px; font-weight: 650; color: var(--ink); letter-spacing: -.02em; }
+  .kcal span { font-size: 12px; color: var(--ink-3); }
+  .macro-note { font-size: 11.5px; color: var(--ink-3); }
+  .bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; }
+  .bar-item { display: flex; flex-direction: column; gap: 5px; }
+  .bar-lab {
+    font-size: 10.5px; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-3); display: flex; justify-content: space-between;
+    font-variant-numeric: tabular-nums;
+  }
+  .bar-lab b { color: var(--ink-2); font-family: var(--mono); font-weight: 600; }
+  .track { height: 5px; border-radius: 3px; background: var(--line-2); overflow: hidden; }
+  .fill { height: 100%; border-radius: 3px; background: var(--accent); }
+  .fill.ok { background: var(--ready); }
+  .fill.under { background: var(--caution); }
+
+  /* why disclosure */
+  details.why { border-top: 1px solid var(--line); }
+  details.why summary {
+    list-style: none; cursor: pointer; padding: 9px 14px;
+    font-size: 12px; color: var(--accent); font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+  }
+  details.why summary::-webkit-details-marker { display: none; }
+  details.why summary .caret { transition: transform .18s ease; font-size: 10px; }
+  details.why[open] summary .caret { transform: rotate(90deg); }
+  details.why .body {
+    padding: 0 14px 12px; font-size: 12.5px; color: var(--ink-2);
+    max-width: 60ch;
+  }
+  details.why .body .fired {
+    margin-top: 8px; font-size: 11.5px; color: var(--ink-3);
+    border-left: 2px solid var(--caution); padding-left: 9px;
+  }
+
+  /* action bar */
+  .actions { display: grid; grid-template-columns: 1fr auto; gap: 9px; }
+  .btn {
+    font-family: var(--sans); font-size: 13.5px; font-weight: 600;
+    padding: 11px 14px; border-radius: 11px; border: 1px solid transparent;
+    cursor: pointer; text-align: center;
+  }
+  .btn.primary { background: var(--accent); color: #fff; }
+  :root[data-theme="dark"] .btn.primary { color: #06171a; }
+  @media (prefers-color-scheme: dark) { .btn.primary { color: #06171a; } }
+  .btn.ghost { background: transparent; color: var(--ink-2); border-color: var(--line-2); }
+
+  /* telegram */
+  .tg { background: var(--panel-2); }
+  .tg .screen { gap: 10px; }
+  .bubble {
+    max-width: 82%; padding: 9px 12px; border-radius: 15px; font-size: 13.5px;
+    box-shadow: 0 1px 1px rgba(18,24,33,.05);
+  }
+  .bubble.coach {
+    background: var(--panel); border: 1px solid var(--line); border-bottom-left-radius: 5px;
+    align-self: flex-start;
+  }
+  .bubble.me {
+    background: var(--accent); color: #fff; border-bottom-right-radius: 5px; align-self: flex-end;
+  }
+  :root[data-theme="dark"] .bubble.me { color: #06171a; }
+  @media (prefers-color-scheme: dark) { .bubble.me { color: #06171a; } }
+  .bubble .b-title { font-weight: 650; margin-bottom: 3px; }
+  .bubble .b-line { color: var(--ink-2); font-size: 12.5px; }
+  .bubble.coach .b-mono { font-family: var(--mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+  .tg-keys { display: flex; flex-direction: column; gap: 6px; align-self: stretch; }
+  .tg-row { display: flex; gap: 6px; }
+  .key {
+    flex: 1; text-align: center; background: var(--panel); border: 1px solid var(--line-2);
+    border-radius: 9px; padding: 9px; font-size: 12.5px; font-weight: 600; color: var(--accent);
+  }
+  .time-sep { text-align: center; font-size: 11px; color: var(--ink-3); margin: 2px 0; }
+  .locked {
+    align-self: flex-start; max-width: 82%; font-size: 11.5px; color: var(--ink-3);
+    display: flex; gap: 7px; align-items: flex-start; padding: 2px 4px;
+  }
+  .locked .ic { color: var(--ink-3); flex-shrink: 0; margin-top: 1px; }
+  .locked a { color: var(--accent); font-weight: 600; text-decoration: none; }
+
+  .foot {
+    margin-top: 32px; padding-top: 18px; border-top: 1px solid var(--line);
+    font-size: 12.5px; color: var(--ink-3); max-width: 68ch;
+  }
+  .foot b { color: var(--ink-2); font-weight: 600; }
+  .legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 10px; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 9px; height: 9px; border-radius: 3px; display: inline-block; }
+</style>
+
+<div class="wrap">
+  <header class="masthead">
+    <p class="eyebrow">Coach · UI mockup</p>
+    <h1>One day, two surfaces</h1>
+    <p>The same plan — Wednesday 22 July — rendered for the web app and for Telegram. The web
+      app is data-dense and answers "what am I doing today?" at a glance; the reasoning sits one
+      tap away. Telegram carries the summary and the buttons, never the sensitive detail.</p>
+  </header>
+
+  <div class="stage">
+
+    <!-- WEB APP -->
+    <section>
+      <p class="col-label"><b>Web app</b> · Tailscale · the rich surface</p>
+      <div class="phone">
+        <div class="phone-bar"><span>7:24</span><span>Today</span><span><span class="dot"></span></span></div>
+        <div class="screen">
+
+          <div class="day-head">
+            <span class="day-date">Wed · 22 Jul · Phase 5, wk 6</span>
+            <h2 class="day-title">Easy run + Upper Pull</h2>
+            <div class="chips">
+              <span class="chip ready"><span class="led"></span>Green · best of week</span>
+              <span class="chip">G1 · one trip</span>
+              <span class="chip">1,850 kcal</span>
+            </div>
+          </div>
+
+          <!-- training -->
+          <div class="card">
+            <div class="card-top">
+              <div>
+                <div class="card-kicker">Training</div>
+                <p class="card-lead">Run first, lift second</p>
+              </div>
+              <span class="card-time">12:00</span>
+            </div>
+            <div class="rows">
+              <div class="row">
+                <div>
+                  <div class="name">Treadmill control run</div>
+                  <div class="sub">5.0 km · 1% · hold HR, read pace</div>
+                </div>
+                <div class="val"><b>≤142</b> bpm</div>
+              </div>
+              <div class="row">
+                <div>
+                  <div class="name">Upper Pull <span class="tag">7 moves</span></div>
+                  <div class="sub">Lat pulldown · CS row · face pull · …</div>
+                </div>
+                <div class="val">RPE <b>7–8</b></div>
+              </div>
+            </div>
+            <details class="why">
+              <summary><span class="caret">▸</span>Why this shape?</summary>
+              <div class="body">
+                Best marker set of the week, but two hard sessions landed in the last three days,
+                so today honours the load cap: no heavy legs, no quality.
+                <div class="fired">Cumulative-load · stacked-hard fired — long run 19 Jul + quality 21 Jul</div>
+              </div>
+            </details>
+          </div>
+
+          <!-- food -->
+          <div class="card">
+            <div class="card-top">
+              <div>
+                <div class="card-kicker">Food · Easy/Strength tier</div>
+                <p class="card-lead">5 feeds · protein-forward</p>
+              </div>
+            </div>
+            <div class="macro">
+              <div class="macro-top">
+                <div class="kcal"><b>1,870</b> <span>/ 1,850 kcal</span></div>
+                <div class="macro-note">+1% on tier · floors clear</div>
+              </div>
+              <div class="bars">
+                <div class="bar-item">
+                  <div class="bar-lab">Protein <b>172</b></div>
+                  <div class="track"><div class="fill ok" style="width:100%"></div></div>
+                </div>
+                <div class="bar-item">
+                  <div class="bar-lab">Carbs <b>159</b></div>
+                  <div class="track"><div class="fill under" style="width:93%"></div></div>
+                </div>
+                <div class="bar-item">
+                  <div class="bar-lab">Fat <b>63</b></div>
+                  <div class="track"><div class="fill ok" style="width:100%"></div></div>
+                </div>
+              </div>
+            </div>
+            <div class="rows">
+              <div class="row">
+                <div><div class="name">Breakfast</div><div class="sub">3 eggs · oats · berries</div></div>
+                <div class="val">08:00 · <b>358</b></div>
+              </div>
+              <div class="row">
+                <div><div class="name">Lunch <span class="tag">post-run</span></div><div class="sub">chicken · rice + beans · fruit</div></div>
+                <div class="val">14:15 · <b>686</b></div>
+              </div>
+              <div class="row">
+                <div><div class="name">Snack</div><div class="sub">skyr · whey · creatine</div></div>
+                <div class="val">17:30 · <b>240</b></div>
+              </div>
+              <div class="row">
+                <div><div class="name">Dinner <span class="tag">iso</span></div><div class="sub">salmon · greens · olives</div></div>
+                <div class="val">20:30 · <b>470</b></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button class="btn primary">Approve → push to watch</button>
+            <button class="btn ghost">Adjust</button>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- TELEGRAM -->
+    <section>
+      <p class="col-label"><b>Telegram</b> · anywhere · summaries + buttons</p>
+      <div class="phone tg">
+        <div class="phone-bar"><span>7:24</span><span>Coach</span><span><span class="dot"></span></span></div>
+        <div class="screen">
+          <div class="time-sep">Today 07:22</div>
+
+          <div class="bubble coach">
+            <div class="b-title">Plan's ready — green light 🟢</div>
+            <div class="b-line">Easy run + Upper Pull today. Two hard days behind you, so no
+              quality and no heavy legs.</div>
+            <div class="b-line" style="margin-top:6px">
+              <span class="b-mono">Run 12:00 · 5k ≤142 · Pull ×7</span><br>
+              <span class="b-mono">1,850 kcal · P170 C170 F60</span>
+            </div>
+          </div>
+
+          <div class="tg-keys">
+            <div class="tg-row">
+              <div class="key">✓ Approve → watch</div>
+              <div class="key">✎ Adjust</div>
+            </div>
+            <div class="tg-row">
+              <div class="key">Open full plan ↗</div>
+            </div>
+          </div>
+
+          <div class="time-sep">14:20</div>
+          <div class="bubble me">ate lunch as planned</div>
+          <div class="bubble coach">
+            <div class="b-line">Logged. <span class="b-mono">1,162 / 1,850 so far</span> — on tier.
+              Snack next at 17:30.</div>
+          </div>
+
+          <div class="locked">
+            <span class="ic">📈</span>
+            <span>Trends, body-comp history and the skin log open in the web app —
+              <a href="#">they need room to render</a>. This chat is yours alone; no other
+              profile's data ever appears here.</span>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <div class="foot">
+    <b>Reading the mockup.</b> The web-app cards answer the two questions that matter —
+    what's the session, what's the food — with numbers, not prose. The head coach's reasoning is
+    the "Why this shape?" disclosure, collapsed by default. Telegram gets the same decision as a
+    short message plus the approve/adjust buttons; the lock line shows the sensitivity boundary
+    that's structural, not a per-message rule.
+    <div class="legend">
+      <span><i style="background:var(--ready)"></i>floor cleared</span>
+      <span><i style="background:var(--caution)"></i>trimmed by design</span>
+      <span><i style="background:var(--accent)"></i>accent / interactive</span>
+    </div>
+  </div>
+</div>

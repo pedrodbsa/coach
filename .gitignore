@@ -1,0 +1,28 @@
+# --- secrets: never commit ---
+.env
+.env.*
+!.env.example
+.mcp.json
+!.mcp.json.example
+secrets/
+*.token.json
+
+# --- node / typescript ---
+node_modules/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# --- derived data stores (rebuildable; refined in Chunk 4) ---
+# The DuckDB working file is derived. The committed Parquet store (decision 15) is NOT ignored.
+*.duckdb
+*.duckdb.wal
+
+# --- n8n / runtime operational state (ephemeral; not committed) ---
+.n8n/
+
+# --- logs & os junk ---
+*.log
+.DS_Store
+Thumbs.db

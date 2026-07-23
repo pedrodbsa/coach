@@ -1,0 +1,220 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# PROTOTYPE — THROWAWAY. Wipe me.
+# Rebuild of logbook/2026-07/2026-07-22.md in the proposed structured shape.
+# NOT a live plan file. Nothing reads this.
+#
+# v2 — partitioned by MODULE. Each module owns a root-level block containing its
+# plan, its validators and its actuals. Head coach and brief sit at root too.
+# ─────────────────────────────────────────────────────────────────────────────
+
+schema_version: 0.2
+date: 2026-07-22
+profile: pedro
+title: Treadmill control run + Upper Pull (pre-lunch double, G1)
+
+# ═══ HEAD COACH ══════════════════════════════════════════════════════════════
+# Whether and what. Specialists read this; none of them write to it.
+decision:
+  day_type: easy_run + strength
+  readiness: green
+  why: >
+    Best marker set of the week, but stacked-hard fires. Green light with load
+    constrained, not a full green day.
+
+  rules_fired:
+    - rule: cumulative_load.stacked_hard
+      because: long run Jul 19 + quality Jul 21 inside the trailing 3 days
+      effect: [no_heavy_legs, no_quality]
+
+  prescribes:
+    - module: running
+      intent: easy_control_run
+    - module: strength
+      intent: upper_pull
+      because: most overdue block session — last Jun 29, skipped Jul 17
+    - module: nutrition
+      intent: tier
+      tier: phase5_easy_strength
+      depends_on: [running, strength]   # fuelling needs the sessions first
+
+# ═══ BRIEF ═══════════════════════════════════════════════════════════════════
+# Facts, never verdicts. Written by code.
+markers:
+  sleep: { hours: 7.02, score: 78, band: FAIR, deep_pct: 18.5, rem_pct: 11.4 }
+  hrv: { last_night_ms: 78, week_avg_ms: 72, status: BALANCED }
+  rhr_bpm: 52
+  body_battery_charge: 68
+  stress_avg: 14
+
+# ═══ RUNNING ═════════════════════════════════════════════════════════════════
+running:
+  session:
+    kind: treadmill_control_run
+    start: "12:00"
+    location: G1
+    rpe: "3-4"
+    why: only heat-independent fitness signal in the block — needs a second comparable datapoint
+    steps:
+      - kind: work
+        distance_km: 5.0
+        duration_min: 30
+        target: { type: hr, max: 142 }
+        incline_pct: 1
+        note: hold the HR and let pace be the readout
+    compare_to: { date: 2026-07-13, avg_hr: 137, pace_per_km: "7:08" }
+    garmin: { push: true, workout_id: null }
+
+  validate:
+    every_step_has_target: true
+
+  actual: null
+
+# ═══ STRENGTH ════════════════════════════════════════════════════════════════
+strength:
+  session:
+    kind: upper_pull
+    start: "12:45"
+    location: G1
+    rpe: "7-8"
+    rotated_off: 2026-06-29
+    constraints: [no_leg_loading]
+    movements:
+      - slot: vertical_pull
+        exercise: Lat pulldown
+        sets: 4
+        reps: [10, 10, 10, 8]
+        load: { value: 110, unit: kg }
+        rest_s: 120
+        garmin: { category: PULL_UP, exercise_name: LAT_PULLDOWN, status: verified }
+        why: progression trigger met Jun 29 — take 110×10 across
+        note: if set 1 flies, go 115 kg
+      - slot: horizontal_row
+        exercise: Chest-supported DB row
+        sets: 4
+        reps: { min: 10, max: 12 }
+        load: { value: 22.5, unit: kg, per: hand }
+        rest_s: 120
+        garmin: { category: ROW, exercise_name: DUMBBELL_ROW, status: verified }
+        why: rebuild to the 22.5 target — Jun 29 ran 20 kg, conservative
+        note: incline bench, strict
+      - slot: row_accessory
+        exercise: Straight-arm cable pulldown
+        sets: 3
+        reps: { min: 12, max: 15 }
+        load: { value: 20, unit: kg }
+        rest_s: 90
+        garmin: { category: PULL_UP, exercise_name: null, status: free_entry }
+      - slot: rear_delt
+        exercise: Face pull
+        sets: 3
+        reps: [15]
+        load: { value: 35, unit: kg }
+        rest_s: 90
+      - slot: biceps
+        exercise: Incline DB curl
+        sets: 3
+        reps: { min: 10, max: 12 }
+        load: { value: 10, unit: kg }
+        rest_s: 90
+        note: top of the working range — drop to 8 kg if reps fade below 10
+      - slot: core_anti_rotation
+        exercise: Half-kneeling cable chop
+        sets: 3
+        reps: { value: 12, per: side }
+        load: { value: 30, unit: kg }
+        rest_s: 60
+      - slot: carry
+        exercise: Suitcase carry
+        sets: 3
+        distance_m: 35
+        per: side
+        load: { value: 24, unit: kg }
+        rest_s: 60
+    garmin: { push: true, workout_id: null }
+
+  validate:
+    every_movement_has_load: true
+    gym_can_perform: G1
+    no_movement_in: [legs]
+
+  actual: null
+
+# ═══ NUTRITION ═══════════════════════════════════════════════════════════════
+nutrition:
+  tier:
+    name: phase5_easy_strength
+    kcal: 1850
+    protein_g: 170   # floor
+    carb_g: 170
+    fat_g: 60        # floor
+    why: first day at the trimmed tiers — −100 kcal from carbs, effective today
+
+  meals:
+    - id: breakfast
+      at: "08:00"
+      items:
+        - { food: eggs, qty: 3, unit: whole }
+        - { food: oats, qty: 30, unit: g }
+        - { food: berries, qty: 80, unit: g }
+        - { food: coffee }
+      macros: { kcal: 358, p: 23, c: 29, f: 18 }
+      why: fat anchored early — 3 whole eggs carry it before dinner
+      status: planned
+
+    - id: pre_training
+      at: "11:30"
+      items:
+        - { food: banana, qty: 1, unit: whole }
+      macros: { kcal: 118, p: 1, c: 27, f: 0 }
+      status: planned
+
+    - id: lunch
+      at: "14:15"
+      label: post-workout, largest carb
+      items:
+        - { food: chicken, qty: 150, unit: g }
+        - { food: rice, qty: 130, unit: g }
+        - { food: beans, qty: 80, unit: g }
+        - { food: veg }
+        - { food: olive oil, qty: 8, unit: g }
+        - { food: fruit, when: after }
+      macros: { kcal: 686, p: 60, c: 81, f: 14 }
+      why: session ends 13:45, so lunch is the post-workout meal — no separate shake
+      status: planned
+
+    - id: snack
+      at: "17:30"
+      items:
+        - { food: skyr, qty: 200, unit: g }
+        - { food: whey, qty: 1, unit: scoop }
+        - { food: creatine, qty: 5, unit: g }
+      macros: { kcal: 240, p: 44, c: 11, f: 2 }
+      why: lunch 14:15 → dinner 20:30 is a 6 h gap into the hardest hunger window
+      status: planned
+
+    - id: dinner
+      at: "20:30"
+      items:
+        - { food: salmon, qty: 200, unit: g, state: raw }
+        - { food: green veg, qty: 250, unit: g }
+        - { food: olives, qty: 6, unit: whole }
+      macros: { kcal: 470, p: 44, c: 11, f: 29 }
+      carries: [isotretinoin]
+      why: fat built into the dish via salmon and olives, not a droppable drizzle
+      status: planned
+
+  totals:
+    expected:  { kcal: 1850, p: 170, c: 170, f: 60 }
+    projected: { kcal: 1870, p: 172, c: 159, f: 63 }
+    actual:    null
+
+  validate:
+    protein_floor_g: 170
+    fat_floor_g: 60
+    protein_boluses: { count_min: 3, each_min_g: 30 }
+    pre_bed_protein_min_g: 40
+    kcal_tolerance_pct: 5
+    medication: { isotretinoin: with_fattiest_meal }
+
+# ═══ CROSS-CUTTING ═══════════════════════════════════════════════════════════
+flags: []
