@@ -16,6 +16,13 @@ else
   echo "no package.json yet (pre-Chunk 1) — skipping npm install"
 fi
 
+# Claude Code — native, self-updating install into ~/.local/bin (on PATH via ~/.profile).
+# Installed here rather than via the npm-based devcontainer feature: the feature installs a
+# second, root-owned copy under /usr/local that shadows this one on PATH and can't self-update
+# (auto-update fails no_permissions). One native install, owned by node, keeps `claude doctor`
+# clean and auto-updates working.
+curl -fsSL https://claude.ai/install.sh | bash -s latest
+
 # Pre-provision the Python the Garmin MCP runs under (matches .mcp.json's `uvx --python 3.12`).
 uv python install 3.12
 

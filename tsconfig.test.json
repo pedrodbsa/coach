@@ -1,0 +1,11 @@
+{
+    // The test project: same compiler settings as the app, checks `test/` too, emits nothing.
+    // `npm run typecheck` is the only thing that reads it — vitest transpiles without checking.
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "noEmit": true,
+        "rootDir": "."
+    },
+    "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"],
+    "exclude": ["dist", "node_modules"]
+}

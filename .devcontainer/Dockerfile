@@ -41,7 +41,8 @@ RUN set -eux; \
     rm -rf /tmp/garmin.tgz "/tmp/garmin-linux-${TARGETARCH}"; \
     garmin --version || true
 
-# Codex CLI. Claude Code is added via the devcontainer feature (see devcontainer.json).
+# Codex CLI. Claude Code is installed natively in post-create.sh (not via a devcontainer
+# feature — see the note there), so it lands in ~/.local owned by node and can self-update.
 RUN npm install -g @openai/codex@${CODEX_VERSION}
 
 # Agent + MCP state dirs. Each is backed by a named volume at runtime so auth survives rebuilds.

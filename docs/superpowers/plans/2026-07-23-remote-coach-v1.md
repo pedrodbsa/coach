@@ -31,7 +31,24 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 - **`decide` is web-app + terminal only, never Telegram.** Policy and profile are **read-only to every action**. *(spec §7, §10; decisions 16, 29)*
 - **Web-app auth is Tailscale** (no auth build). The only public surface is the **Telegram webhook** (secret-token + `chat_id` allowlist). *(spec §10; decision 37)*
 
-**Source of truth for detail:** the design spec `docs/superpowers/specs/2026-07-23-remote-coach-v1-design.md` — this plan plus that spec are self-sufficient for the implementer. The `.scratch/coach-remote/` map and issues are the brainstorm working material the spec was synthesised from; chunk citations to decisions/tickets are provenance pointers, not required reading, and where they disagree with the spec, the spec wins.
+### Added 2026-07-25 — the coaching loop
+
+From `docs/superpowers/specs/2026-07-25-coaching-loop-and-identity.md`, which amends both the design spec and the plugin contract. Every chunk from 2 onward inherits these exactly as it inherits the list above.
+
+- **The head coach is a plugin (`head`), and nothing in the system reads across a namespace.** Its breadth is what a workflow step *hands* it — the brief, petitions, and `coach query` as a tool — never a wider storage handle. `head` is a reserved namespace and is **always active**: a profile cannot deselect it, and its absence is a startup error, not a gap. *(amendments §1)*
+- **Coach identity is logic, not data.** `coaches/<ns>/COACH.md` is builder-authored, single-layer, on the builder's side of the path-disjoint boundary, and read by the **runner** when composing a prompt — it appears in no `Storage` handle and no plugin reads it. Per-person variation lands in policy (philosophy) or profile (tone), never in a forked `.md`. *(amendments §2.1)*
+- **Prose is agent-readable, CLI-never.** Nothing a validator checks, a summary computes with, or a lookup resolves may live *only* in prose — not in a `COACH.md`, not in a profile `notes:` field. If a number matters mechanically it exists as a structured key. This is the rule that stops `training.md` regrowing. *(amendments §2.3)*
+- **Dated facts carry provenance.** A dated summary fact is `{ value, as_of }`; the domain's policy declares a **staleness horizon** per fact; past it the summary emits the value **and** a staleness gap. A dated fact with no declared horizon is a **build-time** failure, not a runtime gap. The brief carries `computed_at`, and a decision records which brief it was made against. *(amendments §3)*
+- **Derive, don't store.** If a value can be derived cheaply and deterministically from canonical sources, it does **not** go in `state`. State is a cache only where the derivation is expensive or the source is gone. *(amendments §4)*
+- **`summary` is daily and bounded; `progress` is windowed.** Adherence over a horizon is a separate deterministic verb (`{ from, to }`), so the daily hot path never pays for four weeks of arithmetic. Both are facts-not-verdicts and both degrade to gaps. *(amendments §5.3)*
+- **History rows share an envelope** — `{ at, kind, by, summary, payload? }` — so core-side `coach query` can span namespaces. Plugins still cannot. *(amendments §5.4)*
+- **Silence is `unknown`, never `skipped`.** Three states that must not collapse: `unknown` (no signal — a gap), `reported` (the athlete said something), `observed` (hard data). Where they overlap and disagree, observed wins for what it can see and reported wins for what it cannot; both are kept. Unknowns close permanently after a policy-defined window and are reported **beside** completions (`4/6 completed, 2 unknown`), never folded into a percentage. *(amendments §6.1, §6.6)*
+- **Before the fact is an `amend`; after the fact is a `report`.** Every log entry carries `at`, `occurred` and a `mode` defaulted deterministically from whether the action's window has passed. Collapsing the two either makes a compliant athlete read as non-compliant or lets the plan rewrite itself to match reality. Corrections append; nothing rewrites. *(amendments §6.3)*
+- **Logs are deltas; proposals are whole documents.** A proposal replaces a file wholesale, so a partial would delete data. A log appends an event, so a delta is the unit and full state is derivable by replay. *(amendments §6.4)*
+- **The common logging path uses no agent.** "Done" is deterministic; a described swap is a cheap parse plus a deterministic recompute against policy. The head coach is involved only when a deviation crosses a threshold the domain cannot absorb — and it alone decides whether the athlete is worth interrupting. Keep the raw utterance beside the parsed delta. *(amendments §6.2, §6.5)*
+- **Domains adjust the *how* freely; they only ever *propose* the rules.** Rejected proposals are retained with their reason and surfaced in the weekly digest, never silently dropped — a head coach that can kill a proposal invisibly makes the athlete blind to what was refused on their behalf. *(amendments §7)*
+
+**Source of truth for detail:** the design spec `docs/superpowers/specs/2026-07-23-remote-coach-v1-design.md`, refined by the plugin contract `docs/superpowers/specs/2026-07-23-plugin-contract.md` and amended by `docs/superpowers/specs/2026-07-25-coaching-loop-and-identity.md` (whose §8 lists exactly what it supersedes). This plan plus those specs are self-sufficient for the implementer. The `.scratch/coach-remote/` map and issues are the brainstorm working material the spec was synthesised from; chunk citations to decisions/tickets are provenance pointers, not required reading, and where they disagree with the spec, the spec wins.
 
 **Sequencing principle:** engine before drivers; de-risk the novel parts first. The full `plan` workflow and the complete action catalogue run and are verified at the terminal (chunks 3–9) **before** n8n, Telegram, or the web app wrap them (chunks 10–13). Test-first for the deterministic engine parts (schema, validators, brief, lookups, drift-control arithmetic) — they are pure and highly testable, and the spec's drift-control fixtures live there.
 
@@ -70,12 +87,13 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 
 **What it produces:**
 - The new repository, built to the target layout from the start: a **shared logic** tree (the CLI, plugin implementations, workflow definitions, plugin **default** policy) and a server-authoritative **`data/<profile>/`** tree (`data/pedro/` with subfolders for policy-overrides, profile, state, history, logbook, store). *(spec §13; decision 05, 36)*
-- A TypeScript project: package manifest, build, a test runner, the DuckDB client dependency, lint. The `coach` binary is wired as the package's bin.
+- A TypeScript project: package manifest, build, a test runner, the DuckDB client dependency, lint, and **Commander** as the thin parsing/dispatch adapter. The `coach` binary is wired as the package's bin; command handlers remain thin wrappers over framework-independent core operations.
 - The **output envelope** type — `{ ok: boolean, data: <T> | null, gaps: Array<{ field, reason, action }>, schema_version }` — and a serializer that always prints it as JSON on stdout.
+- Commander output and exits are overridden: parse failures, unknown commands, and runtime failures also print exactly one envelope on stdout, with no framework-formatted prose contaminating the machine channel.
 - The **profile-scoping helper**: resolves a path *only* inside `data/<profile>/` and throws on any path that escapes it. This is the hard-invariant enforcement point.
 - A trivial core command (`coach core version`) proving the envelope end-to-end.
 
-**How to verify:** `coach core version --profile=pedro` prints a valid envelope JSON. A unit test asserts the profile-scoper **throws** on a cross-profile path (`data/pedro/../partner/x`) and returns a normalized path for a legal one. `npm test` is green.
+**How to verify:** `coach core version --profile=pedro` prints a valid envelope JSON. Missing `--profile`, invalid flags, and unknown commands each exit non-zero while still printing exactly one valid envelope and no Commander prose on stdout. A unit test asserts the profile-scoper **throws** on a cross-profile path (`data/pedro/../partner/x`) and returns a normalized path for a legal one. `npm test` is green.
 
 **Depends on:** Chunk 0 (only for the remote to eventually push to — the skeleton itself needs no secrets).
 
@@ -90,15 +108,22 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 **Goal:** write the load-bearing plugin contract (the spec flags it as deserving its own specification) and implement plugin registration such that an absent plugin is an absent namespace.
 
 **What it produces:**
-- `docs/superpowers/specs/2026-07-23-plugin-contract.md` — a short written sub-spec: a plugin **owns its data (own namespace, reads only its own), policy, and state**; **may have a coach** (warrants one if it has a *how* to decide daily **or** domain policy to evolve); **exposes a `coach <domain> …` CLI namespace including a deterministic `summary`**; **declares its `depends_on`**; and **can petition** other domains through the head coach (a capability/priority, never internals). The bar: a future plugin (cycling, household, social life) slots in without touching the core; non-quantitative domains must not be precluded.
-- The **plugin registry** in the CLI: each plugin declares namespace, commands, its `summary` provider, and `depends_on`. Command dispatch routes `coach <domain> <verb>` to the registered plugin; an unregistered namespace errors clearly.
-- A throwaway **stub plugin** that conforms to the contract, used only to prove registration.
+- `docs/superpowers/specs/2026-07-23-plugin-contract.md` — a short written sub-spec: a plugin **owns its data (own namespace, reads only its own), policy, and state**; **may have a coach** (warrants one if it has a *how* to decide daily **or** domain policy to evolve); **exposes a `coach <domain> …` CLI namespace with a mandatory deterministic `commands.summary`**; may declare optional command-level **synergies**; and **can petition** other domains through the head coach (a capability/priority, never internals). The bar: a future plugin (cycling, household, social life) slots in without touching the core; non-quantitative domains must not be precluded.
+- The **plugin factory** in the CLI: it accepts an active plugin key, resolves that namespace's storage, and constructs the corresponding concrete plugin class. Command dispatch routes `coach <domain> <verb>` through the factory; an inactive key errors clearly.
+- The **storage service** — the mechanism behind "a plugin owns its data, policy and state". The core owns the layout and the *access mode*; the plugin owns its namespace inside each kind. `StorageFactory` is bound to a profile and creates one namespace-scoped `Storage` per plugin, with handles whose capabilities match §5's write rule (policy/profile read-only to actions; state overwrite; history append-only), and never exposes a filesystem path. Path scoping is its private implementation. Effective policy = shipped defaults ⊕ per-profile overrides is resolved *here*, once, and `layers()` keeps the two sides separately readable so `decide` can answer "why is this value what it is". *(spec §4, §5, §13; contract sub-spec §1)*
+- A throwaway **stub plugin** that conforms to the contract, used only to prove registration and the storage capabilities.
 
-**How to verify:** with the stub registered, `coach stub summary --profile=pedro` routes to it and returns an envelope; after removing it from the active set, `coach stub summary` errors "unknown namespace". A test asserts the registry lists only active plugins and exposes each plugin's declared `depends_on`.
+**How to verify:** with the stub key active, `coach stub summary --profile=pedro` routes to it and returns an envelope; after removing it from the active set, `coach stub summary` errors "unknown namespace". A test asserts the factory creates the requested concrete class with its namespace-bound storage. A type-level test asserts `PluginStorage` exposes no policy writer, and a runtime test asserts no handle resolves outside its own namespace.
 
 **Depends on:** Chunk 1.
 
-**Explicitly defers:** real plugins, validator content, coaches, summary content (each plugin defines its own later).
+**Deliberate deviation from the chunk boundary:** the YAML codec and its atomic write path land here (the stores need a real on-disk format for their round-trip tests to prove anything). Chunk 3's `writePlan`/`readPlan` **reuses** it rather than introducing a second serializer.
+
+**Amended 2026-07-25 — a retro-fit, task 2.6.** The contract's §1 was revised once during this chunk (propose/promote) and amended again after it was built. Two changes land back in already-written Chunk 2 code, and nothing else in the chunk moves:
+- **`HistoryEntry` gains the shared envelope** — `{ at, kind, by, summary, payload? }` replacing `{ at, [field]: unknown }`, so core-side `coach query` can span namespaces later without each domain having invented its own row shape.
+- **`head` becomes a reserved namespace** alongside `core`/`brief`/`sync`/`query`/`run`/`resume`, and gains an **always-active exemption** from the profile's plugin selection. A registry that lets a profile deselect the head coach lets a profile exist with no mediator.
+
+**Explicitly defers:** real plugins, validator content, coaches, summary content (each plugin defines its own later). `MetricStore` ships as an **interface only** — the DuckDB implementation is Chunk 4; Chunk 2 grows no database. The head-coach plugin itself is Chunk 7 — 2.6 reserves its namespace, it does not build it.
 
 **Governs:** spec §4, §15 (contract deserves its own spec); decisions 19, 32, 33 (petitions), 50 (`depends_on`); issue `14-modules-and-profile.md`, issue `08-coach-cli-surface.md`.
 
@@ -110,6 +135,12 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 
 **What it produces:**
 - **Plan schema types** matching the prototype `.scratch/coach-remote/prototypes/2026-07-22.plan.yaml`: root `schema_version`, `date`, `profile`, `title`; `decision` (head coach — day type, readiness, `rules_fired`, `prescribes[]` with per-module `intent` and `depends_on`); `markers` (brief, facts only); `running`/`strength`/`nutrition` blocks, each owning its `session`/`meals`, its `validate`, and its `actual`. The schema carries: **reps in three shapes** (per-set list `[10,10,10,8]`, range `{min,max}`, per-side `{value,per}`); a per-item **`note`** for content that resists structure ("if set 1 flies, go 115 kg"); the one-line **`why`** per element; and per-movement **`garmin` enums** (`category`, `exercise_name`, `status`).
+- **Schema fields added 2026-07-25** (amendments §3.3, §6.2–§6.3; contract §6.7). The prototype YAML predates all of these, so extend it rather than matching it exactly:
+  - **`petitions[]` on each module block** — a petition is emitted by a coach, mediated on a *later* decision, so it must persist in between, and the plan file is the day's record (contract §6.7 owed this to Chunk 3).
+  - **An acceptance condition on each `prescribes[]` intent** — what "done" looks like in the head coach's terms, so the domain's `validate` has something external to check against and the head coach can later judge delivery without reading domain internals.
+  - **Brief provenance** — the decision records the `computed_at` of the brief it was made against, so "was this decided on stale premises" is answerable from the artifacts alone.
+  - **Stable `action_id` on every athlete-facing action** the plan prescribes (a session, a meal), because logs and reconciliations target actions and the core owns their identity.
+  - **`at` / `occurred` / `mode`** on every logged entry, `mode` being `amend` (before the fact — the prescription changes) or `report` (after — the outcome differed), defaulted from whether the action's window has passed.
 - **`writePlan` / `readPlan`**: the CLI validates a specialist's JSON against the schema and persists **YAML** (chosen for the athlete and git diffs); round-trip stable. This is the sole-writer path.
 - A seeded **fixture per-profile DuckDB** used by engine tests (metrics keyed by date).
 - The first deterministic command — e.g. `coach running trailing-load` / ACWR — reading policy thresholds and the fixture store, returning the envelope. **Drift-control fixtures** derived from the protocol text pin what "hard session" and "ACWR" mean; a `schema_version` mismatch is a hard failure.
@@ -133,8 +164,10 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 - The **two-phase brief**: markers (sleep, HRV, RHR, body battery, stress — facts, never verdicts) and history pre-built; anything downstream of a not-yet-made decision (day type, tier, slice) is a **callable lookup**, not a pre-filled field.
 - The **sync-fail-loud** behavior: a failed sync emits a loud gap and switches that read to the **Garmin MCP fallback**, never a silent proceed. The Garmin DSW empty-endpoint case emits a gap instructing the agent to ask, never a silent skip.
 - The **extractor** projecting a daily plan file's machine-readable fields into DuckDB, so the store is rebuildable from git at any time.
+- **Freshness, added 2026-07-25** (amendments §3). Every dated fact the brief carries is `{ value, as_of }`; the owning domain's policy declares a **staleness horizon** per fact; past the horizon the brief emits the value **and** a staleness gap — a present-but-old value is not a missing one, and today it would otherwise be consumed as current. The brief itself carries `computed_at`. A **build-time test** asserts every dated fact a summary can emit has a declared horizon, so no fact ships without someone having decided its shelf life.
+- The brief is also where **the head coach's inputs are assembled** rather than read: it is the composed `Record<namespace, DomainSummary>` a workflow step hands the head coach (amendments §1.1), never a tree the head coach opens itself.
 
-**How to verify:** with a stubbed failing `garmin-cli`, `coach brief build --profile=pedro --date=<today>` emits a loud gap and routes to the MCP fallback (MCP mocked) rather than returning stale data; with a seeded store, `coach brief build` returns markers + the concatenation of active plugins' summaries as JSON; an extractor test rebuilds the fixture DuckDB from a fixture plan file and matches the seeded values.
+**How to verify:** with a stubbed failing `garmin-cli`, `coach brief build --profile=pedro --date=<today>` emits a loud gap and routes to the MCP fallback (MCP mocked) rather than returning stale data; with a seeded store, `coach brief build` returns markers + the concatenation of active plugins' summaries as JSON; an extractor test rebuilds the fixture DuckDB from a fixture plan file and matches the seeded values. A fact seeded past its policy horizon returns its value **plus** a staleness gap naming the age; a fact with no declared horizon fails the build-time check.
 
 **Depends on:** Chunk 3.
 
@@ -155,6 +188,11 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 - The **two-phase lookups**: `coach nutrition tier --day-type=…` and the meal build, called *after* the head coach decides.
 - `coach run nutrition --profile=… --date=… [--resume=<sid>]` issuing the SDK `query({ model, systemPrompt, mcpServers, allowedTools })` and returning structured JSON (the specialist's output contract). One-shot isolated for a self-contained transform (ingredient swap); continuous session for iterative work.
 - The **runner failure-ladder primitive**: on a hard `validate` failure, re-run once → escalate to a stronger model → surface as a `needs-input` gate.
+- **Added 2026-07-25 — this chunk sets the per-plugin pattern the next two mirror**, so get these right here rather than three times:
+  - `coaches/nutrition/COACH.md` — the coach's **identity**, builder-authored, single-layer, in the logic tree. The **runner** reads it when composing the prompt (alongside the step's model and effort); it is in no `Storage` handle and the plugin never reads it. Compose the prompt **stable-part-first** (identity, then shipped policy, then overrides, then the volatile brief and date) so the Agent SDK's prompt cache covers the parts that do not change between calls.
+  - `coach nutrition progress --from=… --to=…` — the deterministic windowed verb behind the weekly review. Same rules as `summary` (bounded, prose-free, facts not verdicts, degrades to gaps); separate from it so the daily hot path never pays for a month of arithmetic.
+  - `coach nutrition reconcile` — prescribed versus whatever signals arrived → `{ grade, fidelity, observed, gaps }`, with the thresholds behind the grade **read from policy**. `observed` records what was *actually* eaten, not merely a score; a grade alone throws away the input tomorrow's decision needs.
+  - **`summary` and `progress` facts carry `as_of`**, and nutrition's policy declares their staleness horizons (Chunk 4's build-time check enforces this).
 
 **How to verify:** given a head-coach decision fixture + a brief, `coach run nutrition` emits a meal block that **passes** `coach nutrition validate`; a deliberately broken block (fat floor missed) yields a **hard** violation and drives the ladder (re-run → escalate → gate), asserted by a runner test; the iso-with-dinner rule is enforced. **Build-time checks performed here (first SDK use):** confirm the SDK runs on subscription login (no forced API pricing); measure real cost with `claude -p --output-format json | jq '.total_cost_usd'` over a representative call; verify the exact SDK session/`resume` API and prompt-cache TTL against current `claude-api`/context7 docs.
 
@@ -169,6 +207,8 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 ## Chunk 6 — Running & strength specialists (mirror the nutrition pattern)
 
 **Goal:** the other two specialist plugins, structurally identical to nutrition — proving the pattern generalizes and producing validated `session` blocks the plan workflow will compose.
+
+**Mirror the full Chunk 5 pattern**, including the parts added 2026-07-25: a single-layer `coaches/<ns>/COACH.md` identity in the logic tree, a windowed `progress` verb, a `reconcile` verb whose grade thresholds are policy, and `as_of` + declared staleness horizons on every dated fact. Strength's `reconcile` is the load-bearing one — it is what turns a logged session into the rep-history the progression judgement reads.
 
 **What it produces:**
 - **Running** plugin: default policy ported from `running.md`'s policy half (workout types, heat rules, taper, race execution) + overrides for the athlete's HR zones/calibration; `summary`; `coach running validate` (**every step — warmup/cooldown included — carries an HR or pace target**, the same check `garmin.push` relies on); the lookup `coach running targets` (selects off the sub-T → threshold → 10K-pace → VO2 ladder, sets reps/paces/HR bands, cross-checks the DSW); `coach run running` via the SDK.
@@ -189,9 +229,12 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 **Goal:** the milestone — prove the whole multi-agent `plan` workflow end-to-end from the terminal: preflight → DSW gate → head-coach decide → lookups → specialists (topo-sorted from `depends_on`) → summary → approve gate → write `plan.yaml`.
 
 **What it produces:**
-- **Head coach policy** = the existing `coaching.md` primer as scoped head-coach policy, **plus the dissolved `training.md`**: the Sleep & Readiness Decision Tree, Override Rules, Cumulative-Load Rules, Weekly Structure & Phase-Aware Templates, Double-Day Guidelines, Rest-Day NEAT, Minimum-Effective-Dose Fallback Week, Disrupted-Day Protocol, Tracking Rules, **Deload Rules**. Head-coach rules **quantify over vocabulary the active specialists register** (what counts as "hard" comes from running/strength), so removing a specialist shrinks the vocabulary, not the rule.
-- **Mobility** as a policy-only plugin for v1 (contributes "include prehab" and pain as a readiness term; the head coach reads it). A mobility *coach* is deferred (spec §15 open item) — note it, don't build it.
-- **`coach run head-coach`** (the decide step) via the SDK: reads the union of active plugins' policy + the brief + summaries, emits the `decision` block (day type, readiness verdict, `rules_fired`, `prescribes[]` with per-module `intent` + `depends_on`).
+- **The head coach is a plugin** (amendments §1), registered under the reserved, always-active namespace `head` that Chunk 2's retro-fit set aside. It is built here exactly like `running` or `nutrition` — a `PluginDefinition`, one namespace-bound `Storage`, a mandatory `summary`, a `CoachDefinition` and therefore a `validate` verb (contract §4.3). It holds **no privileged handle** and reads no other namespace.
+- **Head coach policy** under `policy/head/` = the existing `coaching.md` primer as scoped head-coach policy, **plus the dissolved `training.md`**: the Sleep & Readiness Decision Tree, Override Rules, Cumulative-Load Rules, Weekly Structure & Phase-Aware Templates, Double-Day Guidelines, Rest-Day NEAT, Minimum-Effective-Dose Fallback Week, Disrupted-Day Protocol, Tracking Rules, **Deload Rules**. The athlete's deviations are overrides under `data/pedro/policy/head/`. Head-coach rules **quantify over vocabulary the active specialists register** (what counts as "hard" comes from running/strength), so removing a specialist shrinks the vocabulary, not the rule. Its identity is `coaches/head/COACH.md`, single-layer, same as every other coach.
+- **Mobility** as a policy-only plugin for v1 (contributes "include prehab" and pain as a readiness term; the head coach reads it *through the brief*). A mobility *coach* is deferred (spec §15 open item) — note it, don't build it.
+- **`coach run head` (the decide step) via the SDK.** Its inputs are **handed to it by the workflow step**, never read across a namespace (amendments §1.1): the composed brief from Chunk 4, the petitions persisted on the previous decision, its own policy/profile/state/history, and `coach query` **as a tool** for anything the brief does not carry. It emits the `decision` block — day type, readiness verdict, `rules_fired`, `prescribes[]` with per-module `intent`, `depends_on`, and the **acceptance condition** Chunk 3 added to the schema.
+  - *This replaces the plan's original "reads the union of active plugins' policy"* — that union read was `CoreStorage.activePolicy()`, deleted by the contract's §1.6 revision because the deterministic summary left it with no caller. Nothing reads across a namespace.
+- **`coach head validate`** — checks the *decision* structurally before five specialists run on it: every prescribed module names an active plugin, every rule cited exists in policy, every intent carries an acceptance condition some domain can actually check. The head coach's mandatory `summary` is the standing decision state (day type, readiness as decided, open petitions, open proposals) — which is what Chunk 12's Today view reads.
 - **The workflow runner**: composes the `plan` workflow, **topologically sorting steps from `depends_on`** (nutrition after running + strength), running the specialists, calling the summary agent step, and driving gates in **terminal-direct synchronous mode** (`needs-input` DSW gate; `needs-approval` gate where an edit re-enters the decide step and re-opens the gate). The runner returns the structured "awaiting-decision" result the interactive terminal renders inline.
 - The `det` write step: persist the composed `plan.yaml` + refresh the metrics snapshot (state).
 
@@ -226,6 +269,13 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 ## Chunk 9 — The rest of the action catalogue (terminal-direct)
 
 **Goal:** complete the seven-action catalogue at the terminal — every logging/adjust action runnable and verified before any driver wraps it, so Telegram and the web app have a full surface to drive.
+
+**The logging model, added 2026-07-25** (amendments §6) — it binds every action below, and getting it wrong makes every adherence number a lie:
+- **Core owns the action record, its `action_id`, its lifecycle and the ingest channel**; the **plugin** owns interpretation via `reconcile`; **policy** owns the thresholds behind a grade; the **head coach** alone decides whether the athlete is worth interrupting. The athlete-facing "done" goes through **one core channel** — they must never need to know which plugin owns which action.
+- **`amend` versus `report`.** A change arriving *before* the action's window has passed amends the **prescription** (the domain re-derives, the plan records the amendment, and `reconcile` later compares against the amended version). A change arriving *after* is an **outcome report** against the standing plan. Defaulted deterministically from the window; corrected by appending, never by rewriting.
+- **Silence is `unknown`, never `skipped`** — permanently, after a policy-defined window; reported beside completions, never folded into a percentage.
+- **Logs are deltas.** "Had tofu not chicken" must never require restating the meal.
+- **The common path uses no agent** — "done" is deterministic; a described swap is a cheap parse plus a deterministic recompute. Keep the raw utterance beside the parsed delta so a mis-parse stays recoverable.
 
 **What it produces** (each `det`/`agent`/`det` per the catalogue):
 - **`meal.confirm`** — `coach nutrition confirm <meal>`: mark the row eaten, roll actual/projected totals. Deterministic; no agent in the way of a tick.
@@ -297,7 +347,8 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 **What it produces:**
 - **Tailscale-only** serving (Tailscale is the auth; no auth build). Calls the engine through n8n's HTTP API.
 - **Today** (first): the instrument panel — a **markers strip** (HRV, sleep, body battery) and a **trailing-load line** above the two answer-cards (session, food, numbers not prose), macro bars in semantic colour, the head coach's reasoning behind a **"Why this shape?"** tap; Approve/Adjust buttons; the DSW gate as a form. Renders directly from `plan.yaml`.
-- **History** (trends-first, minimal v1): morning-weight trend, weekly load, adherence as simple charts over the store, with **day drill-down** (prescribed vs actual from the plan's `actual` fields) beneath. The elaborate interactive dashboard stays v2.
+- **History** (trends-first, minimal v1): morning-weight trend, weekly load, adherence as simple charts over the store, with **day drill-down** (prescribed vs actual from the plan's `actual` fields) beneath. The elaborate interactive dashboard stays v2. Adherence reads each domain's **`progress`** verb (Chunk 5's pattern) rather than recomputing in the UI, and renders **unknowns beside completions** — `4/6 completed, 2 unknown`, never a percentage that silently counts an unreported session as a failure (amendments §6.6).
+- **The weekly review surface, added 2026-07-25**: the review workflow *interprets* the `progress` facts, it never computes them (amendments §5.2). Its digest includes **proposals raised and rejected, with the head coach's reason** — a head coach that can kill a proposal invisibly makes the athlete blind to what was refused on their behalf, so the rejections surface here as a digest rather than as interruptions (amendments §7).
 - **Protocols**: read policy + `decide` steering (the governed path; web-only).
 - **Profile**: goals, races, HR zones, equipment — edited via the governed `decide`-style path (web + terminal), never Telegram; initial creation is a one-time bootstrap.
 
@@ -316,10 +367,10 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 **Goal:** close v1 — the governed durable-change workflow, then prove the isolation invariant and the plugin contract by standing up a second, structurally different profile.
 
 **What it produces:**
-- **The `decide` workflow** (web + terminal only, never Telegram): a **sub-coach proposes** with its derivation → the **head coach mediates** cohesion across domains → the **athlete approves** → the CLI **atomically** appends the coaching-log row **and** applies the policy/profile/override edit. Weekly-by-default cadence with an **ad-hoc escape** for the urgent correction. (Its weekly-recap invocation belongs to the out-of-scope `/week` effort; build the workflow, not the ritual.)
+- **The `decide` workflow** (web + terminal only, never Telegram): a **sub-coach proposes** with its derivation → the **head coach mediates** cohesion across domains → the **athlete approves** → the CLI **atomically** appends the coaching-log row **and** applies the policy/profile/override edit. Weekly-by-default cadence with an **ad-hoc escape** for the urgent correction. (Its weekly-recap invocation belongs to the out-of-scope `/week` effort; build the workflow, not the ritual.) Mechanism per contract §1.11 as amended: the **specialist composes and persists its own complete proposal document** via `propose` (the core never authors a plugin's policy); mediation iterates a bounded number of rounds, appending to `rounds[]`, then surfaces a `needs-input` gate; promotion refuses a proposal whose base has moved; the unit of atomicity is the **git commit**. For a **coach-less plugin the athlete is the proposer** (contract §4.6). **Rejected proposals are retained** with their reason for the weekly digest, never deleted (amendments §7).
 - **A second profile** `data/<partner>/`: its own DuckDB, `chat_id`, overrides — created clean.
 - **Isolation hardening**: tests proving no core operation ever reads or writes outside `data/<profile>/`, and that neither profile's surfaces (Telegram `chat_id`, web, store) can see the other's data.
-- **The girlfriend compose**: a `plan` workflow for a profile with **head coach + strength + nutrition, no running** — composed by dropping the running plugin, with the head-coach vocabulary shrinking automatically (no hand-editing of any rule).
+- **The girlfriend compose**: a `plan` workflow for a profile with **head coach + strength + nutrition, no running** — composed by dropping the running plugin, with the head-coach vocabulary shrinking automatically (no hand-editing of any rule). The **two-phase parse** contract §2.6 owed this chunk lands here: resolve profile → read `profile/core/plugins.yaml` → build the command tree → parse. A missing selection document is a **gap**, not "activate everything", and `head` is **exempt** — always active, never deselectable, its absence a startup error (amendments §1.2).
 
 **How to verify:** a policy edit via `decide` (e.g. adjust a tier floor) appends exactly one coaching-log row and applies the override **atomically** (both or neither), and is refused on Telegram; an isolation test proves profile B's every surface and store read is scoped to `data/partner/` and throws on any `data/pedro/` path; `coach run plan --profile=partner` composes and runs a valid running-less plan whose head-coach rules still fire over the reduced vocabulary.
 
@@ -351,6 +402,18 @@ Every chunk's requirements implicitly include this section. Values copied verbat
 | §13 Repo, deployment, three state stores, prerequisites | 0, 1, 10 |
 | §14 Out of scope | deferred, listed in 12/13 |
 | §15 Open at build time (plugin contract, mobility coach, SDK/cache verify) | 2 (contract), 5 (SDK verify), 7 (mobility note) |
+
+**Amendment coverage (2026-07-25)** — every section of `2026-07-25-coaching-loop-and-identity.md` maps to a chunk:
+
+| Amendment section | Chunk(s) |
+| --- | --- |
+| §1 The head coach is a plugin (`head` reserved, always active, breadth-as-input) | 2 (retro-fit 2.6), 4 (brief as its input), 7 (built), 13 (exempt from selection) |
+| §2 Identity as logic (`coaches/<ns>/COACH.md`); profile structured with `notes` | 5 (pattern), 6, 7 |
+| §3 `as_of` provenance, policy staleness horizons, brief `computed_at` | 3 (schema), 4 (brief + build-time check), 5–7 (per-domain horizons) |
+| §4 Derive-don't-store for `state` | 5–7, enforced at review rather than by a type |
+| §5 The progression loop (`progress` verb, weekly review, history envelope) | 2 (envelope, 2.6), 5–6 (`progress`), 12 (review surface) |
+| §6 Actions, completion, logging (`reconcile`, amend/report, unknowns) | 3 (schema fields), 5–6 (`reconcile`), 9 (the actions) |
+| §7 Proposal gatekeeping and rejection visibility | 12 (digest), 13 (`decide`) |
 
 The two-phase brief (map standing decision 3) is realized in Chunk 4 (markers/history pre-built) + the specialist lookups (Chunks 5–6, called after decide). The journal/coaching-log eviction boundary (decisions 10, 27) is implicit in the schema (Chunk 3, `why`-per-element cap) and realized by `decide` appending bounded log rows (Chunk 13); the prose journal itself is written alongside the plan in Chunk 7's write step.
 

@@ -1,0 +1,28 @@
+{
+  "name": "remote-coach",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "coach": "./dist/cli/coach.js"
+  },
+  "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "typecheck": "tsc --project tsconfig.test.json",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@duckdb/node-api": "1.5.5-r.1",
+    "commander": "^15.0.0",
+    "yaml": "^2.9.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@types/node": "^26.1.1",
+    "eslint": "10.7.0",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}

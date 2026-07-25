@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2024",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    // Write `./foo.ts` and let tsc emit `./foo.js`. The NodeNext runtime still needs the `.js`
+    // specifier, but the source now names the file it actually means.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    // An override must say `override`, so a subclass cannot silently shadow a base member.
+    "noImplicitOverride": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

@@ -3,6 +3,16 @@
 **Date:** 2026-07-23
 **Status:** Decision-complete design, ready for implementation planning
 **Supersedes:** `2026-06-19-coach-remote-interface-design.md` (substantially — see "What changed")
+**Refined by:** `2026-07-23-plugin-contract.md` — the plugin seam in full (storage kinds and their
+write rules, registration, the deterministic `summary`, coaches, synergies, petitions,
+propose→promote). It refines this document only where this one is silent.
+**Amended 2026-07-25 by** `2026-07-25-coaching-loop-and-identity.md`, which wins for the areas it
+names and leaves the rest of this document standing. Chiefly: **§3's head coach becomes a plugin**
+(its breadth is what a workflow step hands it, never a wider handle); coach **identity** is added
+as logic (`coaches/<ns>/COACH.md`), not a fifth data kind; **§5's kinds gain provenance** (`as_of`
+on dated facts, staleness horizons in policy) and a *derive-don't-store* rule for `state`; **§7's
+actions gain a completion model** (`unknown` ≠ `skipped`, amend-vs-report, per-plugin `reconcile`).
+That document's §8 lists every superseded passage.
 **Source of record:** this document. The wayfinder map at `.scratch/coach-remote/` (16 design
 tickets, 50 numbered decisions) is the brainstorm working material this spec was synthesised
 from — historical background, not authority. Inline decision/ticket citations are provenance
@@ -44,7 +54,8 @@ Two layers, cleanly separated:
 
 - **The engine** — a bespoke **TypeScript `coach` library**, exposed as a **CLI**. It holds all
   domain logic: agent orchestration (via the Claude Agent SDK), the plan schema, validators,
-  lookups, the brief, Garmin writes.
+  lookups, the brief, Garmin writes. **Commander** is the thin CLI adapter for argument parsing
+  and dispatch; domain logic remains framework-independent.
 - **The driver** — **n8n**. It hosts per-profile workflows, handles Telegram I/O, cron triggers,
   the HTTP API for the web app, durable human-in-the-loop waits, and execution logging.
 
@@ -285,6 +296,9 @@ Sunday). *(Decisions 29, 30, 31.)*
 
 The core TS library behind a single canonical CLI. *(Decisions 42, 43, 08.)*
 
+- **Commander is the CLI adapter:** it parses and dispatches only. Commands are thin adapters
+  over the framework-independent core library, and the domain plugin registry builds the
+  Commander command tree explicitly. Commander's plugin model is not used.
 - **Namespaced by plugin:** `coach <domain> <verb>` (`nutrition tier`, `strength slice`,
   `running targets`) plus a small core namespace (`brief`, `sync`, `query`, `run <coach>`,
   `resume`). An absent plugin is an absent namespace.
@@ -294,7 +308,9 @@ The core TS library behind a single canonical CLI. *(Decisions 42, 43, 08.)*
   agent decides; `coach query` is the raw-SQL escape hatch over the profile DuckDB.
 - **Output:** structured JSON. **Missing ≠ zero** — a missing value is `null` **plus a first-class
   `gap`** `{field, reason, action}` (e.g. an empty DSW endpoint emits a gap telling the agent to
-  ask, never a silent skip).
+  ask, never a silent skip). Commander output and exits are overridden so parse failures,
+  unknown commands, and runtime failures also emit exactly one envelope on stdout; framework
+  help/error prose never contaminates the machine channel.
 - **Sync-then-query:** every data command force-syncs first; a failed sync is a **loud gap** that
   switches that read to the Garmin MCP fallback, never a silent proceed on stale data.
 - **Validators:** `coach <domain> validate` → `{ ok, violations:[{rule, expected, actual,
