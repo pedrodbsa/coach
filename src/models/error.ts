@@ -43,7 +43,8 @@ export type CoachErrorCode =
     | "PROPOSAL_NOT_FOUND"
     | "PROPOSAL_STALE"
     // Surfaces a later chunk builds.
-    | "METRIC_STORE_UNAVAILABLE";
+    | "METRIC_STORE_UNAVAILABLE"
+    | "METRIC_TABLE_NOT_DECLARED";
 
 export class CoachError extends Error {
     private constructor(
@@ -185,7 +186,22 @@ export class CoachError extends Error {
     static metricStoreUnavailable(operation: string): CoachError {
         return new CoachError(
             "METRIC_STORE_UNAVAILABLE",
-            `the metric store is not implemented until Chunk 4 (per-profile DuckDB): ${operation}`,
+            `the metric store write is not implemented until Chunk 4 (per-profile DuckDB): ${operation}`,
+        );
+    }
+
+    static metricStoreMissing(filePath: string): CoachError {
+        return new CoachError(
+            "METRIC_STORE_UNAVAILABLE",
+            `the per-profile metric store is missing: "${filePath}"`,
+        );
+    }
+
+    /** The store's declared table ownership is its only plugin boundary (§1.7). */
+    static metricTableNotDeclared(namespace: string, table: string): CoachError {
+        return new CoachError(
+            "METRIC_TABLE_NOT_DECLARED",
+            `metric table "${table}" is not declared by namespace "${namespace}"`,
         );
     }
 }

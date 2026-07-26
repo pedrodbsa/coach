@@ -6,8 +6,12 @@
 import { describe, expect, it } from "vitest";
 
 import { CoachEngine } from "../src/engine.ts";
-import { makeEnvelope } from "../src/models/envelope.ts";
-import type { IPlugin, PluginCommands } from "../src/plugins/index.ts";
+import type { DomainPlugin, IPlugin } from "../src/plugins/index.ts";
+
+/** A stand-in for the stub's engine side: whatever `summary` the test needs, and nothing else. */
+function fakeStub(summary: DomainPlugin["summary"]): IPlugin {
+    return { key: "stub", domain: { summary } };
+}
 
 describe("CoachEngine", () => {
     it("invokes a core command", async () => {
@@ -27,11 +31,43 @@ describe("CoachEngine", () => {
         expect(result).toMatchObject({ ok: true, data: { namespace: "stub" }, gaps: [] });
     });
 
-    it("reports what it routes, core first", () => {
+    it("wraps the domain result itself — the plugin returns no envelope", async () => {
+        const engine = new CoachEngine({ activePlugins: ["stub"] });
+
+        const result = await engine.invoke({ namespace: "stub", verb: "summary", profile: "pedro" });
+
+        expect(result.data).toEqual({ namespace: "stub", facts: {}, observations: [], gaps: [] });
+        expect(result.schema_version).toBe("0.2");
+    });
+
+    it("copies a degraded result's gaps to the envelope, leaving them on the data", async () => {
+        const gap = { field: "week_km", reason: "no session logged this week", action: "Log a run." };
+        const engine = new CoachEngine({
+            activePlugins: ["stub"],
+            buildPluginFactory: () => ({
+                create: () =>
+                    fakeStub(async () => ({
+                        namespace: "stub",
+                        facts: { week_km: null },
+                        observations: [],
+                        gaps: [gap],
+                    })),
+            }),
+        });
+
+        const result = await engine.invoke({ namespace: "stub", verb: "summary", profile: "pedro" });
+
+        // `ok` follows the gaps the core lifted; the brief still needs them attributed to the domain.
+        expect(result).toMatchObject({ ok: false, gaps: [gap] });
+        expect(result.data).toMatchObject({ gaps: [gap] });
+    });
+
+    it("reports what it routes, core first, from static declarations", () => {
         expect(new CoachEngine({ activePlugins: ["stub"] }).namespaces()).toEqual(["core", "stub"]);
         expect(new CoachEngine({ activePlugins: [] }).namespaces()).toEqual(["core"]);
-        expect(new CoachEngine().coreVerbs("core")).toEqual(["version"]);
-        expect(new CoachEngine().coreVerbs("stub")).toEqual([]);
+        expect(new CoachEngine().verbs("core")).toEqual(["version"]);
+        expect(new CoachEngine({ activePlugins: ["stub"] }).verbs("stub")).toEqual(["summary", "inspect"]);
+        expect(new CoachEngine({ activePlugins: [] }).verbs("stub")).toEqual([]);
     });
 
     it("defaults to every registered plugin being active", () => {
@@ -105,17 +141,10 @@ describe("CoachEngine", () => {
             const engine = new CoachEngine({
                 activePlugins: ["stub"],
                 buildPluginFactory: () => ({
-                    create: (): IPlugin => ({
-                        key: "stub",
-                        commands: {
-                            summary: {
-                                synergies: [],
-                                execute: () => {
-                                    throw new Error("boom");
-                                },
-                            },
-                        } satisfies PluginCommands,
-                    }),
+                    create: () =>
+                        fakeStub(() => {
+                            throw new Error("boom");
+                        }),
                 }),
             });
 
@@ -132,15 +161,7 @@ describe("CoachEngine", () => {
             const engine = new CoachEngine({
                 activePlugins: ["stub"],
                 buildPluginFactory: () => ({
-                    create: (): IPlugin => ({
-                        key: "stub",
-                        commands: {
-                            summary: {
-                                synergies: [],
-                                execute: () => Promise.reject(new Error("async boom")),
-                            },
-                        } satisfies PluginCommands,
-                    }),
+                    create: () => fakeStub(() => Promise.reject(new Error("async boom"))),
                 }),
             });
 
@@ -161,18 +182,10 @@ describe("CoachEngine", () => {
             buildPluginFactory: (storageFactory) => ({
                 create: (key): IPlugin => {
                     const storage = storageFactory.create(key);
-                    return {
-                        key: "stub",
-                        commands: {
-                            summary: {
-                                synergies: [],
-                                execute: async () => {
-                                    seen.push(storage.namespace);
-                                    return makeEnvelope({ namespace: storage.namespace });
-                                },
-                            },
-                        } satisfies PluginCommands,
-                    };
+                    return fakeStub(async () => {
+                        seen.push(storage.namespace);
+                        return { namespace: storage.namespace, facts: {}, observations: [], gaps: [] };
+                    });
                 },
             }),
         });
@@ -184,23 +197,16 @@ describe("CoachEngine", () => {
         expect(seen).toEqual(["stub", "stub"]);
     });
 
-    it("passes host input through to the command unmodified", async () => {
-        let received: unknown;
+    it("hands the host's input to the binding, which decides what the method sees", async () => {
+        let received: unknown = "never called";
         const engine = new CoachEngine({
             activePlugins: ["stub"],
             buildPluginFactory: () => ({
-                create: (): IPlugin => ({
-                    key: "stub",
-                    commands: {
-                        summary: {
-                            synergies: [],
-                            execute: async (input) => {
-                                received = input;
-                                return makeEnvelope(null);
-                            },
-                        },
-                    } satisfies PluginCommands,
-                }),
+                create: () =>
+                    fakeStub(async (input) => {
+                        received = input;
+                        return { namespace: "stub", facts: {}, observations: [], gaps: [] };
+                    }),
             }),
         });
 
@@ -211,6 +217,8 @@ describe("CoachEngine", () => {
             input: { weight: 74.2 },
         });
 
-        expect(received).toEqual({ weight: 74.2 });
+        // The stub's binding narrows to nothing — argv declarations are task 3.0 — so the raw bag
+        // stops at the binding rather than reaching the domain function untyped.
+        expect(received).toBeUndefined();
     });
 });

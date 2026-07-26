@@ -15,11 +15,13 @@
  *   from Chunk 13 sourced from the profile's own selection (§2.6).
  * - **Profile scoping.** Every invocation builds a fresh {@link CoachContext}, so no request can
  *   observe or reach another profile's tree.
- * - **Dispatch.** Core namespaces from `commands/registry.ts`, plugin namespaces through the
- *   factory. A host routes; it never constructs a plugin itself.
+ * - **Dispatch.** Core namespaces from `commands/registry.ts`, plugin namespaces through the static
+ *   binding and the factory. A host routes; it never constructs a plugin itself.
  * - **The envelope.** {@link CoachEngine.invoke} *never throws* — every outcome, including an
  *   unknown namespace or a command that blew up, is one `{ ok, data, gaps, schema_version }`. A host
- *   only has to publish it.
+ *   only has to publish it. A **domain function returns a domain result**; wrapping it is the core's
+ *   job (amendment §1.5), because `schema_version` and the exit code are properties of the CLI
+ *   boundary and Chunk 7's in-process runner passes typed values between steps without one.
  *
  * What the engine deliberately does **not** own: which profile a request is for. Resolving that from
  * a `--profile` flag, a `chat_id`, or a session cookie is host-specific, so `invoke` demands a
@@ -34,8 +36,11 @@ import { makeEnvelope, makeGap, type Envelope } from "./models/envelope.ts";
 import { CoachError } from "./models/error.ts";
 import {
     PluginFactory,
+    pluginVerb,
+    pluginVerbs,
     registeredPluginKeys,
     resolveActivePlugins,
+    type DomainFunction,
     type PluginFactoryBuilder,
     type PluginKey,
 } from "./plugins/index.ts";
@@ -70,12 +75,16 @@ export interface CoachRequest {
     readonly input?: unknown;
 }
 
-/** The command surface a host needs to route, narrower than the whole engine. */
+/**
+ * The command surface a host needs to route, narrower than the whole engine. Both questions are
+ * answered from **static** data — the core table and each plugin's CLI binding — so a host can build
+ * its entire command tree before it knows whose profile the request is for (amendment §1.7).
+ */
 export interface CommandSurface {
     /** Every namespace this engine answers — core plus the active plugins. */
     namespaces(): readonly string[];
-    /** Verbs known without a profile. Empty for a plugin namespace, whose verbs need construction. */
-    coreVerbs(namespace: string): readonly string[];
+    /** The verbs a namespace answers; empty for one it does not. */
+    verbs(namespace: string): readonly string[];
 }
 
 const SILENT_IO: IoSinks = Object.freeze({
@@ -114,8 +123,14 @@ export class CoachEngine implements CommandSurface {
         return Object.freeze([...CORE_COMMANDS.keys(), ...this.#activePlugins]);
     }
 
-    coreVerbs(namespace: string): readonly string[] {
-        return Object.freeze([...(CORE_COMMANDS.get(namespace)?.keys() ?? [])]);
+    verbs(namespace: string): readonly string[] {
+        const core = CORE_COMMANDS.get(namespace);
+        if (core !== undefined) {
+            return Object.freeze([...core.keys()]);
+        }
+
+        const active = this.#activePlugin(namespace);
+        return active === undefined ? Object.freeze([]) : pluginVerbs(active);
     }
 
     /**
@@ -138,19 +153,37 @@ export class CoachEngine implements CommandSurface {
 
             // Re-checked here rather than trusted from the host: routing is a host's convenience,
             // reachability is the engine's guarantee (§2.4).
-            if (!this.#activePlugins.some((active) => active === request.namespace)) {
+            const active = this.#activePlugin(request.namespace);
+            if (active === undefined) {
                 throw CoachError.unknownNamespace(request.namespace, this.namespaces());
             }
 
-            const plugin = this.#buildPluginFactory(ctx.storage).create(request.namespace);
-            const command = Object.hasOwn(plugin.commands, request.verb) ? plugin.commands[request.verb] : undefined;
-            if (command === undefined) {
+            const bound = pluginVerb(active, request.verb);
+            if (bound === undefined) {
                 throw CoachError.unknownCommand(request.namespace, request.verb);
             }
 
-            return await command.execute(request.input);
+            const plugin = this.#buildPluginFactory(ctx.storage).create(active);
+            const domain: Readonly<Record<string, DomainFunction>> = plugin.domain;
+            const method = domain[bound.method];
+            if (method === undefined) {
+                // Unreachable through the registry — the binding is compile-checked against the
+                // plugin. A test double that omits the method lands here.
+                throw CoachError.unknownCommand(request.namespace, request.verb);
+            }
+
+            // The binding narrows the host's bag; the core — not the plugin — wraps the result, and
+            // **copies** its gaps rather than moving them: the brief attributes a domain's own gaps
+            // by namespace, and the envelope needs them at the top level to derive `ok`.
+            const result = await method(bound.narrow(request.input));
+            return makeEnvelope(result, [...(result.gaps ?? [])]);
         } catch (error: unknown) {
             return makeEnvelope(null, [makeGap(error)]);
         }
+    }
+
+    /** The active key for a namespace, or `undefined` — the one place reachability is decided. */
+    #activePlugin(namespace: string): PluginKey | undefined {
+        return this.#activePlugins.find((active) => active === namespace);
     }
 }

@@ -25,12 +25,10 @@ export class PluginFactory implements IPluginFactory {
             throw CoachError.unregisteredPlugin(key);
         }
 
-        const definition = PLUGIN_REGISTRY[key];
+        const { definition } = PLUGIN_REGISTRY[key];
         return {
             key,
-            commands: definition.commands(
-                this.#storageFactory.create(key, definition.storeTables),
-            ),
+            domain: definition.create(this.#storageFactory.create(key, definition.storeTables)),
         };
     }
 }

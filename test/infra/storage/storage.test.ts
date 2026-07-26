@@ -328,12 +328,12 @@ describe("AppendOnlyLog — history", () => {
     });
 });
 
-describe("MetricStore — interface only until Chunk 4", () => {
-    it("throws an explicit Chunk 4 error rather than failing obscurely", async () => {
-        const store = storage();
+describe("MetricStore — read-only until Chunk 4", () => {
+    it("names a missing store and keeps writes explicitly deferred to Chunk 4", async () => {
+        const store = new StorageFactory(PROFILE, { dataRoot, policyRoot }).create(NAMESPACE, ["sessions"]);
 
         await expect(store.store.rows("sessions")).rejects.toThrow(coachError("METRIC_STORE_UNAVAILABLE"));
-        await expect(store.store.rows("sessions")).rejects.toThrow(/Chunk 4/);
+        await expect(store.store.rows("sessions")).rejects.toThrow(/missing/i);
         await expect(store.store.insert("sessions", [{ a: 1 }])).rejects.toThrow(/Chunk 4/);
     });
 

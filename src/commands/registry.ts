@@ -22,8 +22,9 @@ export const CORE_NAMESPACES: readonly string[] = Object.freeze([
 ]);
 
 /**
- * Input is `unknown` for the same reason it is on `PluginCommand`: the dispatcher receives argv, an
- * HTTP body or a chat message, none of which has a compile-time shape. The command narrows.
+ * Input is `unknown` because the dispatcher receives argv, an HTTP body or a chat message, none of
+ * which has a compile-time shape. The command narrows. A plugin no longer needs this: its CLI
+ * binding narrows for it (amendment §1.1), and task 3.0 gives the core surface the same treatment.
  */
 export type CoreCommand = CoachCommand<unknown, unknown>;
 

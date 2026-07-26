@@ -18,14 +18,26 @@
  * Nothing here runs plugin code or touches the filesystem (§2.5).
  */
 
+import type { BoundVerb } from "../cli/binding.ts";
 import { CORE_NAMESPACES } from "../commands/registry.ts";
 import { CoachError } from "../models/error.ts";
-import { stubPlugin } from "./stub.ts";
+import { stubCli } from "./stub/cli.ts";
+import { stubPlugin } from "./stub/index.ts";
 import type { PluginDefinition } from "./types.ts";
 
+/**
+ * One domain's two sides, collected. The binding is a **sibling** of the definition rather than a
+ * field on it, so the dependency runs one way — `cli.ts` is compile-checked against `index.ts`, and
+ * the engine side never imports the integration side. Registration is still one entry in one file.
+ */
+export interface RegisteredPlugin {
+    readonly definition: PluginDefinition;
+    readonly cli: Readonly<Record<string, BoundVerb>>;
+}
+
 export const PLUGIN_REGISTRY = {
-    stub: stubPlugin,
-} as const satisfies Record<string, PluginDefinition>;
+    stub: { definition: stubPlugin, cli: stubCli },
+} as const satisfies Record<string, RegisteredPlugin>;
 
 /** A namespace this build knows how to construct. Which of them a *profile* activates is §2.6. */
 export type PluginKey = keyof typeof PLUGIN_REGISTRY;
@@ -49,6 +61,20 @@ export function isPluginKey(key: string): key is PluginKey {
 /** Every namespace this build can construct — the widest set a profile could activate. */
 export function registeredPluginKeys(): readonly PluginKey[] {
     return Object.freeze(Object.keys(PLUGIN_REGISTRY).filter(isPluginKey));
+}
+
+/**
+ * The verbs a namespace answers, and what one means. Both read the **static** binding: no plugin is
+ * constructed, no profile is resolved and no file is touched, which is what lets a host build its
+ * whole command tree before it knows whose data it is looking at (§2.5, amendment §1.7).
+ */
+export function pluginVerbs(key: PluginKey): readonly string[] {
+    return Object.freeze(Object.keys(PLUGIN_REGISTRY[key].cli));
+}
+
+export function pluginVerb(key: PluginKey, verb: string): BoundVerb | undefined {
+    const cli: Readonly<Record<string, BoundVerb>> = PLUGIN_REGISTRY[key].cli;
+    return Object.hasOwn(cli, verb) ? cli[verb] : undefined;
 }
 
 /**

@@ -27,14 +27,19 @@ after the current chunk passes review, so they can harden against what was actua
 5. `docs/superpowers/specs/2026-07-25-coaching-loop-and-identity.md` — the amendments: head coach
    as a plugin, identity as logic, fact provenance, the `progress` verb, the completion model.
    Its §8 lists exactly which passages of 2–4 it supersedes.
-6. Prototypes cited by the plan: `.scratch/coach-remote/prototypes/2026-07-22.plan.yaml`
+6. `docs/superpowers/specs/2026-07-25-plugin-seam-and-observations.md` — the second amendment: the
+   plugin splits into an **engine side** (typed domain functions, domain results) and a co-located
+   **CLI binding** (argv, narrowing); the **core** wraps the envelope; `DomainSummary` gains
+   `observations: string[]`. Its §4 lists what it supersedes.
+7. Prototypes cited by the plan: `.scratch/coach-remote/prototypes/2026-07-22.plan.yaml`
    (plan schema) and `.scratch/coach-remote/prototypes/ui-today.html` (Today view).
 
 **Precedence:** the design spec beats the plan; the plugin contract refines the design spec where
-it is silent; the amendments beat all three **for the areas they name**. A task file written
-before an amendment is **not** authority — where a task file and a spec disagree, the spec wins
-and the deviation gets reported (task 2.3, for instance, still names `GovernedStorage` and
-`CoreStorage`, both deleted by the contract's §1 revision before it was executed).
+it is silent; the amendments beat all three **for the areas they name**, later amendment first.
+A task file written before an amendment is **not** authority — where a task file and a spec
+disagree, the spec wins and the deviation gets reported (task 2.3, for instance, still names
+`GovernedStorage` and `CoreStorage`, both deleted by the contract's §1 revision before it was
+executed; task 3.0 puts Commander syntax on `PluginCommand`, superseded before it was reviewed).
 
 ## Load-bearing invariants (inherited by every task — full list in the plan's Global Constraints)
 
@@ -96,6 +101,36 @@ and tell the PO so future chunks are annotated to match.
 Chunks 1→9 (the engine) are a hard dependency chain — a chunk starts only when the previous is
 green. Chunks 10→13 (the drivers) branch slightly. **Parallelism lives inside a chunk**, not
 across chunks. Within-chunk task ordering (`Depends on` / `Blocks`) is stated in each file.
+
+---
+
+## Dispatch table — what to run next
+
+Everything not `done`, in dependency order. **Agent and effort are copied from each task file's
+header; the file is authority if they ever drift.** Hand a worker the file path and nothing else —
+each one is self-contained.
+
+| # | Task | Agent · Effort | Discipline | Waits on | Parallel with |
+| --- | --- | --- | --- | --- | --- |
+| ~~2.7~~ | ~~[plugin seam split](02-7-plugin-seam-split.md)~~ | Claude Opus 4.8 · high | test-first | — | **done, reviewed 2026-07-26** |
+| ~~3.1~~ | ~~[plan schema + amendment fields](03-1-plan-schema.md)~~ | Claude Opus 4.8 · high | test-first | — | **done, reviewed 2026-07-26** |
+| ~~3.3~~ | ~~[fixture DuckDB + read-only `MetricStore`](03-3-fixture-store.md)~~ | Codex Terra · medium | ships tests | — | **done, reviewed 2026-07-26** |
+| **3.0** | [argv declaration in the binding](03-0-command-input-seam.md) | **Codex Terra** · medium | ships tests | 2.7 ✓ | 3.2 |
+| **3.2** | [`writePlan` / `readPlan`](03-2-plan-persistence.md) | **Codex Terra** · medium | test-first | 3.1 ✓ | 3.0 |
+| **3.4** | [`running trailing-load` + drift fixtures](03-4-trailing-load.md) | **Claude Opus 4.8** · high | test-first | 3.0, 3.3 ✓ | 3.5 |
+| **3.5** | [`schema_version` mismatch](03-5-schema-version-pin.md) | **Codex Terra** · low | test-first | 3.1 ✓, 3.2 | 3.4 |
+
+**Start now, in parallel:** **3.0 and 3.2** — independent of each other, and both unblocked.
+Then 3.4 (needs 3.0) and 3.5 (needs 3.2) can also run in parallel, and 3.5 closes the chunk.
+
+Then the chunk review, then Chunk 4's files get written.
+
+### Model rubric, in one line
+
+**Codex** for pure code against a tight spec (*Sol* flagship → *Terra* workhorse → *Luna* trivial
+glue); **Claude** for judgment — invariants, adversarial edges, and test-first work where designing
+the test *is* the work (*Opus 4.8* high-judgment → *Sonnet 5* contained → *Haiku 4.5* glue). Effort
+scales with judgment density, not line count. Full rubric under **Model & effort** above.
 
 ---
 
@@ -172,22 +207,50 @@ Open items this review raised, none blocking Chunk 3:
 - `data/pedro/proposals/` is not scaffolded (created on first write; the other six kinds have a
   `.gitkeep`), and `AGENTS.md` still says no commit has been made.
 
+### Chunk 2 addendum — the plugin-seam split  — **status: done** *(reviewed 2026-07-26)*
+- ● [2.7](02-7-plugin-seam-split.md) — **`2026-07-25-plugin-seam-and-observations.md` retro-fit**: split into an engine side (typed domain functions returning domain results) and a co-located, compile-checked CLI binding; the **core** wraps the envelope; `synergies` moves engine-side; `DomainSummary` introduced with `observations`; task 3.0's profile hoist reverted *(test-first)*
+
+*Review:* the compile-check is real, mutation-tested both ways — renaming an engine-side method
+breaks `cli.ts` (`Type '"inspect"' is not assignable to type '"summary" | "probe"'`), and a `narrow`
+building the wrong method's input errors while a correct one stays silent. Error precedence is
+restored and pinned: with no profile, `cycling targets` reports the unknown namespace and
+`core version --bogus` reports the unknown option. `parseArgv` constructs no plugin — asserted by an
+engine whose factory throws. `core version` byte-identical.
+
+Three deviations, all accepted:
+
+- **`commandInput` deleted rather than reprofiled, and the on-demand leaf registration with it.**
+  Went beyond the brief and is strictly better: with `accepts` deferred to 3.0 it had nothing to
+  return, and the on-demand registration existed *only* because plugin verbs were not statically
+  knowable — which the binding fixed. `CommandSurface` is now `namespaces()` + `verbs(namespace)`,
+  the whole tree is static, and an unknown verb now fails in the engine's own words
+  (`unknown command "core wat"`) rather than as Commander prose. **3.0 was updated to match.**
+- **`coach stub summary` is not byte-identical** — `data` gains `"observations":[],"gaps":[]`. Two
+  acceptance criteria were in direct conflict and the type correctly won; the byte-identical
+  criterion was written to catch envelope regressions, and `core version` still serves that.
+- **`synergies` sits on the definition, not per-function.** Amendment §2 says "function"; per-verb
+  would be machinery for a field with **no consumer anywhere**. Chunk 7.3 still must use it or delete
+  it. Cost: `stubPlugin` is annotated rather than `as const satisfies`, to break a type cycle through
+  `PLUGIN_REGISTRY`.
+
 ### Chunk 3 — Plan schema, YAML persistence, first deterministic command  — *depends on 2* — **status: todo**
-- ● [3.0](03-0-command-input-seam.md) — **command input seam**: `--date` and positional args, + one envelope on engine-construction failure
-- ● [3.1](03-1-plan-schema.md) — plan-schema types (matching the prototype YAML) **+ the 2026-07-25 fields**: `petitions[]` per module block, an acceptance condition per `prescribes[]` intent, brief provenance on the decision, stable `action_id` per athlete-facing action, `at`/`occurred`/`mode` on logged entries *(test-first)*
+- ● [3.0](03-0-command-input-seam.md) — **rewritten** *(depends on 2.7)*: the CLI binding declares flags and positionals, `program.ts` renders them, `DATE_OPTION` shared, a missing required input is a gap rather than parser prose
+- ● [3.1](03-1-plan-schema.md) — **done** *(reviewed 2026-07-26)* — plan-schema types **+ the 2026-07-25 fields**: `petitions[]` per module block, an acceptance condition per `prescribes[]` intent, brief provenance on the decision, stable `action_id`, `at`/`occurred`/`mode` on logged entries *(test-first)*
 - ● [3.2](03-2-plan-persistence.md) — `writePlan`/`readPlan` (validate JSON → persist YAML, round-trip stable) *(test-first)*
-- ● [3.3](03-3-fixture-store.md) — seeded fixture per-profile DuckDB + read-only `MetricStore`
+- ● [3.3](03-3-fixture-store.md) — **done** *(reviewed 2026-07-26)* — seeded fixture per-profile DuckDB + read-only `MetricStore`
 - ● [3.4](03-4-trailing-load.md) — `coach running trailing-load` / ACWR + drift-control fixtures *(test-first)*
 - ● [3.5](03-5-schema-version-pin.md) — `schema_version` mismatch = hard failure naming both versions *(test-first)*
 
-*Ordering:* 3.0, 3.1 and 3.3 are independent and can run in parallel. 3.2 needs 3.1; 3.4 needs 3.0
-and 3.3; 3.5 needs 3.1 and 3.2 and closes the chunk.
+*Ordering:* **2.7 first** — 3.0 depends on it. Then 3.1 and 3.3 are independent of 3.0 and of each
+other; 3.2 needs 3.1; 3.4 needs 3.0 and 3.3; 3.5 needs 3.1 and 3.2 and closes the chunk.
 
-*Scope note:* **3.0 is new**, not in the plan's Chunk 3 list. It is a prerequisite of the chunk's
-own verify clause rather than an addition to it: no command can accept a flag today, and Chunk 3's
-clause is `coach running trailing-load --profile=pedro --date=<fixture-date>`. It also carries a
-two-line fix for a latent hole where a `CoachEngine` constructor failure escapes `runCli`'s error
-handling and prints no envelope at all.
+*Scope note:* **3.0 is not in the plan's Chunk 3 list.** It is a prerequisite of the chunk's own
+verify clause rather than an addition to it: no command can accept a flag today, and Chunk 3's clause
+is `coach running trailing-load --profile=pedro --date=<fixture-date>`. Its first version was built
+and reviewed, then superseded by the plugin-seam amendment; the argv declaration moved into the
+binding and the file was rewritten behind 2.7. The engine-startup-envelope fix it carried — a
+`CoachEngine` constructor failure escaping `runCli` and printing no envelope at all — was correct and
+survives into 2.7.
 
 *Scope note:* 3.3 resolves the apparent Chunk 2/3 conflict over `MetricStore` — Chunk 3 implements
 **reads** over declared tables so 3.4 has a store; **ingestion and `insert()` stay Chunk 4**, and
@@ -198,7 +261,78 @@ specialist is Chunk 6.1.
 *Correction carried into 3.2:* the plan's verify clause asks for the **prototype** YAML to round-trip
 byte-stably. It cannot — the prototype carries comments and banner blocks, which `toJS()` discards.
 3.2 splits it into a structural test against the prototype and a byte-stability test against a
-committed normalized fixture.
+committed normalized fixture. **3.1 has already committed both**:
+`test/fixtures/plan/2026-07-22.plan.yaml` (corrected + extended, validates with zero violations) and
+`…pre-amendment.plan.yaml` (the prototype verbatim). 3.2 takes the first for its structural test.
+
+*3.1 review:* verified live — the corrected fixture validates clean, and the prototype-as-written
+pins to **exactly 13 hard violations** (the float `schema_version`, `tier` as an unknown key, three
+missing `accept`s, the missing brief provenance, seven missing `action_id`s), which makes the
+five-field gap visible rather than papering over it. The prose rule has teeth: `accept: "hit the
+floors"` and `accept: { why: … }` are both hard `accept.structured`; a bad operator, a list value on
+`>=`, a `target` on a petition and a duplicate `action_id` are each caught. `at`/`occurred`/`mode`
+correctly sit on `LogEntry` (per action) rather than on the module's `actual`, with `mode` enum-checked.
+
+*3.1 rulings to carry forward:* `action_id` is `<date>:<module>:<slot>` — a function of *position*, so
+an amend cannot orphan its own log row; presence and uniqueness are hard, the derived form only warns.
+`prescribes[].tier` is **refused as an unknown key**, not relocated — the head coach states floors via
+`accept` and nutrition records its own choice. `MealStatus` is `planned | amended` only: `meal.confirm`
+is an outcome and lands in `actual`, because letting it flip a status would let the prescription
+rewrite itself (§6.3) — **Chunk 9 inherits this.**
+
+*3.3 review:* the fixture is reviewable CSV (35 days, 2026-06-21 → 2026-07-25 — a 4-week window plus
+the current week) built into a temp DuckDB at test time; **no binary is committed**, so files stay
+canonical and DuckDB derived. `access_mode: "READ_ONLY"` enforces read-only at the database, not just
+by omitting a method. A missing store throws `METRIC_STORE_MISSING` rather than returning `[]`, and
+an undeclared table throws naming both table and namespace.
+
+### Open items raised at review, not yet owned by a task
+
+- **Chunk 4 — gaps have no severity.** Validators carry `severity: hard | warn`; gaps do not, and
+  `makeEnvelope` derives `ok = gaps.length === 0`, so `runCli` exits 1. A brief whose only problem is
+  a 9-day-old weigh-in is therefore `ok: false`, exit 1 — indistinguishable from a failed sync. Fine
+  at the terminal; it breaks in **Chunk 10**, where n8n nodes branch on exit code and a stale weight
+  would abort the `plan` run. Chunk 4.5 introduces staleness gaps, so it must settle this: either
+  gaps gain a severity, or `ok` stops being a pure gap count.
+- **Chunk 4/9 — mobility's pain has no ingestion action.** Contract §4.2 makes `mobility`
+  policy-only and it contributes "pain as a readiness term" to the brief, so `pain_flags` must be
+  structured — but no action in the catalogue writes it. It would arrive through `adjust.day` or
+  `coach.chat`, both of which have agent steps; nobody has designed that path.
+- **Chunk 9 — skin's plugin has no chunk.** Contract §4.2 gives `skin` `policy, summary, commands`,
+  but the plan builds only `skin.capture` (9.5). Since the brief is every active plugin's summary,
+  the head coach cannot see skin at all as things stand — and spec §7 assigns it the weekly skin↔
+  training correlation. Needs either a task or an explicit "capture-only in v1" note.
+- **Before Chunk 7 — contract §8's obligations table cites §5.3 and §5.4**, subsections §5 does not
+  have; they survive from the pre-rewrite §5. The *rule* they state (the runner sorts the union of
+  static and per-day edges; an inactive dependency drops its edge) is what Chunk 7.3 topo-sorts by,
+  so the rationale needs restoring before it is built against.
+- **Contract §1.10** promises a type-level `expectTypeOf` test that does not exist; Chunk 2 shipped a
+  runtime capability assertion instead (accepted at review). Amend the wording.
+
+Added at the 2026-07-26 review of 2.7 / 3.1 / 3.3:
+
+- **Chunk 1 — bare `coach` emits `"reason": "(outputHelp)"`.** Commander pre-empts
+  `CoachError.noCommand()`, which is now effectively unreachable, and its internal token lands in the
+  machine channel. Confirmed pre-existing (reproduced against `HEAD`), and independently found by
+  2.7's worker. Fix: a no-op `.action()` on namespace nodes, or catch
+  `CommanderError.code === "commander.help"` and raise `noCommand()`.
+- **Chunk 4 — `DuckDbMetricStore.rows()` hardcodes `ORDER BY "date"`** and casts a `date` column, so
+  every declared table must have one. Defensible (design §5 keys metrics by date) but it is baked
+  into the store rather than declared. A table without a `date` column fails with a raw DuckDB error,
+  not a named `CoachError`. Decide when Chunk 4 adds real tables.
+- **Chunk 7.1 — `day_type: easy_run + strength` is a composite string** no rule can compare. 3.1 kept
+  it verbatim as spec-faithful, but it is a prose-rule smell; a list of tokens is the natural fix and
+  it is the head-coach policy port's call.
+- **Convention inherited from 3.1: a violation's path lives inside `rule`**
+  (`decision.prescribes[nutrition].accept.required`), because the Global Constraints fix the four
+  fields with no slot for a path. Consequence to know: `rule` is no longer a stable identifier to
+  branch on, since the same check at two paths yields two strings. Low risk — the validator ladder
+  keys off `severity`, not `rule`.
+- **`plugins/types.ts` imports `Gap` from `models/envelope.ts`.** No plugin type names `Envelope`,
+  but the module path does. `Gap` arguably wants its own home before Chunk 4.
+- **`src/models/plan.ts` is 1621 lines** — by far the largest file in the repo. It matches the
+  deliverable and consumers get one import; splitting the validator walk into `plan-checks.ts` is
+  offered and cheap. Left as 3.2's call, since 3.2 is its first consumer.
 
 ### Chunk 4 — Brief builder, Garmin reads, loud sync fallback  — *depends on 3*
 - ○ 4.1 — `garmin-cli`→DuckDB ingestion + `coach sync` (haversine splits, pace from avg_speed)

@@ -22,6 +22,7 @@ export const assertSafeSegment = assertValidProfile;
 
 /** §1.3 allows several history documents; the append-only interface addresses exactly one. */
 const HISTORY_DOCUMENT = "log";
+const METRIC_STORE_FILE = "metrics.duckdb";
 
 export type NamespacedKind = "policy" | "profile" | "state" | "history" | "proposals";
 
@@ -91,6 +92,11 @@ export class Binding {
 
     historyLog(): string {
         return this.#inProfile("history", this.namespace, `${HISTORY_DOCUMENT}${LOG_EXTENSION}`);
+    }
+
+    /** One derived DuckDB file per profile; its tables are bounded separately by declared ownership. */
+    metricStore(): string {
+        return this.#inProfile("store", METRIC_STORE_FILE);
     }
 
     /** Profile-level and cross-domain, so it is keyed by month rather than by namespace. */

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { createContext } from "../../src/context.ts";
 import { PluginFactory } from "../../src/plugins/index.ts";
-import { stubPlugin } from "../../src/plugins/stub.ts";
+import { stubPlugin } from "../../src/plugins/stub/index.ts";
 import { coachError } from "../support/errors.ts";
 
 const io = { stdout: { write: () => {} }, stderr: { write: () => {} } };
@@ -21,8 +21,9 @@ describe("PluginFactory", () => {
         const plugin = factory.create("stub");
 
         expect(plugin.key).toBe("stub");
-        expect(plugin.commands.summary.execute).toBeTypeOf("function");
-        expect(plugin.commands.summary.synergies).toEqual([]);
+        expect(plugin.domain.summary).toBeTypeOf("function");
+        // `synergies` is domain metadata now, so it hangs off the definition, not off a verb.
+        expect(stubPlugin.synergies).toEqual([]);
         expect(storageRequests).toEqual([{ namespace: "stub", tables: stubPlugin.storeTables }]);
     });
 

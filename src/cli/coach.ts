@@ -13,7 +13,7 @@
 import { realpathSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
-import { CoachEngine } from "../engine.ts";
+import { CoachEngine, type CoachEngineOptions } from "../engine.ts";
 import type { OutputSink } from "../infra/io.ts";
 import { makeEnvelope, makeGap, type Envelope } from "../models/envelope.ts";
 import { CoachError } from "../models/error.ts";
@@ -30,9 +30,10 @@ export async function runCli(
     stdout: OutputSink = process.stdout,
     stderr: OutputSink = process.stderr,
     env: NodeJS.ProcessEnv = process.env,
-    engine: CoachEngine = new CoachEngine({ io: { stdout, stderr }, env }),
+    engine?: CoachEngine,
+    buildEngine: (options: CoachEngineOptions) => CoachEngine = (options) => new CoachEngine(options),
 ): Promise<number> {
-    const result = await invoke(engine, argv, env);
+    const result = await invoke(engine, argv, env, stdout, stderr, buildEngine);
 
     // stdout is framework-reserved: exactly one JSON envelope, no trailing prose.
     stdout.write(`${JSON.stringify(result)}\n`);
@@ -40,17 +41,23 @@ export async function runCli(
 }
 
 async function invoke(
-    engine: CoachEngine,
+    engine: CoachEngine | undefined,
     argv: readonly string[],
     env: NodeJS.ProcessEnv,
+    stdout: OutputSink,
+    stderr: OutputSink,
+    buildEngine: (options: CoachEngineOptions) => CoachEngine,
 ): Promise<Envelope<unknown>> {
     try {
-        const parsed = parseArgv(argv, engine);
+        // Constructed inside the `try`: a startup failure is this adapter's own gap, not a crash
+        // that reaches stdout as nothing at all.
+        const activeEngine = engine ?? buildEngine({ io: { stdout, stderr }, env });
+        const parsed = parseArgv(argv, activeEngine);
         if (parsed === undefined) {
             throw CoachError.noCommand();
         }
 
-        return await engine.invoke({
+        return await activeEngine.invoke({
             namespace: parsed.namespace,
             verb: parsed.verb,
             profile: resolveProfile(parsed.profileFlag, env),

@@ -24,10 +24,16 @@ records Chunk 2's review verdict, its two accepted deviations and the open items
    The head coach becomes a plugin; coach identity is added as *logic*; summary facts gain
    provenance; a windowed `progress` verb joins `summary`; actions gain a completion model. Its
    §8 lists exactly which passages of 1–3 it supersedes.
+5. **The plugin-seam amendment** — `docs/superpowers/specs/2026-07-25-plugin-seam-and-observations.md`.
+   A plugin splits into an **engine side** (typed domain functions returning domain results) and a
+   co-located **CLI binding** (argv, narrowing); the **core** wraps the envelope, not the plugin;
+   `DomainSummary` gains `observations: string[]` — the athlete's voice reaching the head coach,
+   read by an agent and computed with by nothing. Its §4 lists what it supersedes.
 
 **Precedence when two of these disagree:** the design spec beats the plan; the plugin contract
 refines the design spec only where the spec is silent; the amendments beat all three **for the
-areas they name**, and everything else stands. Each document states this in its own header.
+areas they name**, later amendment first, and everything else stands. Each document states this in
+its own header.
 
 The plan and those specs are self-sufficient for the implementer. The `.scratch/coach-remote/`
 tree (map, 17 issues, prototypes, research) is the **brainstorm working material** the spec was
@@ -44,9 +50,11 @@ checkpoint between chunks**, using the `superpowers:executing-plans` skill (or
 chunk until its dependencies are green. The deterministic engine parts (schema, validators,
 brief, lookups, drift-control arithmetic) are built **test-first** per `superpowers:test-driven-development`.
 
-**Next up: Chunk 3** — the plan schema, YAML persistence and the first deterministic command, with
-the five schema fields the 2026-07-25 amendments add. Its six task files are written
-(`docs/tasks/03-*.md`); **3.0, 3.1 and 3.3 are independent and can run in parallel**. Chunk 0 is a
+**Next up: task 2.7** — the retro-fit landing the plugin-seam split (source 5 above) in Chunk 2's
+code, before Chunks 5–7 build three coached plugins on the merged shape. Then **Chunk 3**: the plan
+schema, YAML persistence and the first deterministic command, with the five schema fields the
+coaching-loop amendments add. Task files 3.1–3.5 are written and stand; **3.0 is superseded as
+written** and needs a rewrite behind 2.7 (its engine-startup fix is correct and stays). Chunk 0 is a
 manual prerequisites gate the athlete owns (see below); it blocks *deployment* (Chunks 10–13), not
 the engine work (Chunks 1–9).
 

@@ -13,11 +13,18 @@ dist/
 build/
 coverage/
 *.tsbuildinfo
+.eslintcache
+.vitest/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
 
 # --- derived data stores (rebuildable; refined in Chunk 4) ---
 # The DuckDB working file is derived. The committed Parquet store (decision 15) is NOT ignored.
 *.duckdb
 *.duckdb.wal
+# DuckDB may spill temporary storage beside the per-profile store while ingesting.
+data/*/store/duckdb_temp_storage_*.tmp
 
 # --- n8n / runtime operational state (ephemeral; not committed) ---
 .n8n/

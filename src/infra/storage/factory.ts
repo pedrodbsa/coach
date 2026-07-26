@@ -8,7 +8,7 @@
 import type { StorageFactoryOptions } from "./binding.ts";
 import { Binding } from "./binding.ts";
 import { HistoryLog, LogbookDocuments, PolicyDocuments, ProfileDocuments, StateDocuments } from "./stores.ts";
-import { UnavailableMetricStore } from "./metric-store.ts";
+import { DuckDbMetricStore } from "./metric-store.ts";
 import { createProfileScoper, DATA_ROOT, type ProfileResolver } from "./scope.ts";
 import type { IStorageFactory, Storage } from "./types.ts";
 
@@ -45,7 +45,7 @@ export class StorageFactory implements IStorageFactory {
             state: new StateDocuments(binding),
             history: new HistoryLog(binding),
             logbook: new LogbookDocuments(binding),
-            store: new UnavailableMetricStore(binding.storeTables),
+            store: new DuckDbMetricStore(binding),
         });
     }
 }

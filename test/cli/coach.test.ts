@@ -186,4 +186,71 @@ describe('coach CLI', () => {
     });
     expect(stderr.chunks).toEqual([]);
   });
+
+  /**
+   * Error precedence, the regression task 3.0 introduced: resolving a profile before parsing made
+   * every routing and parse failure report `no profile selected`. Nothing below sets a profile, and
+   * each one must still name its own cause.
+   */
+  describe('reports its own cause before it asks about a profile', () => {
+    it('names an unknown namespace and the registered ones', async () => {
+      const stdout = sink();
+
+      const exitCode = await runCli(['cycling', 'targets'], stdout, sink(), {});
+
+      expect(exitCode).toBe(1);
+      expect(stdout.chunks).toHaveLength(1);
+      expect(JSON.parse(stdout.chunks[0])).toMatchObject({
+        ok: false,
+        data: null,
+        gaps: [
+          {
+            field: 'command',
+            reason: 'unknown namespace "cycling"',
+            action: 'Use a registered namespace: core, stub.',
+          },
+        ],
+      });
+    });
+
+    it('reports the parser, not the profile, when nothing was selected', async () => {
+      const stdout = sink();
+
+      const exitCode = await runCli([], stdout, sink(), {});
+
+      expect(exitCode).toBe(1);
+      expect(stdout.chunks).toHaveLength(1);
+      // Commander pre-empts `noCommand()` with its own help error for a bare `coach`; poor prose in
+      // the machine channel, but Chunk 1's behaviour and not a missing-profile gap.
+      const [gap] = JSON.parse(stdout.chunks[0]).gaps;
+      expect(gap.field).toBe('command');
+      expect(gap.reason).not.toContain('profile');
+    });
+
+    it('names the unknown option rather than the absent profile', async () => {
+      const stdout = sink();
+
+      const exitCode = await runCli(['core', 'version', '--bogus'], stdout, sink(), {});
+
+      expect(exitCode).toBe(1);
+      expect(stdout.chunks).toHaveLength(1);
+      expect(JSON.parse(stdout.chunks[0]).gaps[0].reason).toContain("unknown option '--bogus'");
+    });
+  });
+
+  it('wraps an engine startup failure in exactly one envelope', async () => {
+    const stdout = sink();
+
+    expect(
+      await runCli(['core', 'version', '--profile=pedro'], stdout, sink(), {}, undefined, () => {
+        throw new Error('engine startup failed');
+      }),
+    ).toBe(1);
+    expect(stdout.chunks).toHaveLength(1);
+    expect(JSON.parse(stdout.chunks[0])).toMatchObject({
+      ok: false,
+      data: null,
+      gaps: [{ field: 'command', reason: 'engine startup failed' }],
+    });
+  });
 });

@@ -23,15 +23,13 @@ export interface ParsedInvocation {
  * Parses `argv`, or returns `undefined` if no runnable leaf was selected (e.g. `coach` or
  * `coach core` with no verb).
  *
- * The command tree is built from `surface`, so a namespace the engine does not answer contributes no
- * Commander node and fails **here**, in routing (§2.4) — absence is structural, not a message a
- * plugin gets to write. Commander's output is suppressed and `exitOverride` turns parse failures
- * into thrown `CommanderError`s for the caller to fold into a gap.
+ * The whole tree comes from `surface`, core and plugin alike, because a plugin's verbs are static
+ * data in its CLI binding — so parsing needs no profile, and a routing failure cannot be shadowed by
+ * one. A namespace the engine does not answer fails **here** (§2.4) with its own cause rather than
+ * Commander's prose; `exitOverride` turns parse failures into thrown `CommanderError`s for the
+ * caller to fold into a gap, and Commander's own output is suppressed.
  */
-export function parseArgv(
-    argv: readonly string[],
-    surface: CommandSurface,
-): ParsedInvocation | undefined {
+export function parseArgv(argv: readonly string[], surface: CommandSurface): ParsedInvocation | undefined {
     let parsed: ParsedInvocation | undefined;
 
     const bind =
@@ -59,9 +57,22 @@ export function parseArgv(
 
     const namespaces = surface.namespaces();
 
-    // Core verbs are known without a profile, so their nodes are registered up front.
+    // Ahead of the parse, so absence is reported by *routing* (§2.4) in the engine's own words
+    // rather than as Commander prose — and, with no profile resolved yet, never as a missing profile.
+    const [requestedNamespace, requestedVerb] = positionals(argv);
+    if (requestedNamespace !== undefined && !namespaces.some((known) => known === requestedNamespace)) {
+        throw CoachError.unknownNamespace(requestedNamespace, namespaces);
+    }
+    if (
+        requestedNamespace !== undefined &&
+        requestedVerb !== undefined &&
+        !surface.verbs(requestedNamespace).some((known) => known === requestedVerb)
+    ) {
+        throw CoachError.unknownCommand(requestedNamespace, requestedVerb);
+    }
+
     for (const namespace of namespaces) {
-        const verbs = surface.coreVerbs(namespace);
+        const verbs = surface.verbs(namespace);
         if (verbs.length === 0) {
             continue;
         }
@@ -69,26 +80,6 @@ export function parseArgv(
         for (const verb of verbs) {
             node.command(verb).helpOption(false).action(bind(namespace, verb));
         }
-    }
-
-    // A plugin's verbs need a constructed plugin, which needs a profile that is not resolved yet —
-    // so the requested leaf is registered on demand. §2.6's two-phase parse (Chunk 13) removes this.
-    const [requestedNamespace, requestedVerb] = positionals(argv);
-    if (
-        requestedNamespace !== undefined &&
-        requestedVerb !== undefined &&
-        surface.coreVerbs(requestedNamespace).length === 0
-    ) {
-        if (!namespaces.some((known) => known === requestedNamespace)) {
-            throw CoachError.unknownNamespace(requestedNamespace, namespaces);
-        }
-
-        program
-            .command(requestedNamespace)
-            .helpOption(false)
-            .command(requestedVerb)
-            .helpOption(false)
-            .action(bind(requestedNamespace, requestedVerb));
     }
 
     program.parse([...argv], { from: "user" });
